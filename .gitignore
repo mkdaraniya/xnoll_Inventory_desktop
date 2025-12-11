@@ -1,0 +1,79 @@
+# -----------------------------------------
+# Node / NPM
+# -----------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------
+# Environment Files
+# -----------------------------------------
+.env
+.env.*
+!.env.example
+
+# -----------------------------------------
+# Build Output (Electron + Vite)
+# -----------------------------------------
+dist/
+dist-electron/
+out/
+build/
+release/
+*.asar
+
+# -----------------------------------------
+# Electron-Specific
+# -----------------------------------------
+*.log
+*.pid
+*.seed
+*.csv
+*.bak
+
+# electron-builder
+*.snap
+*.msi
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.exe
+
+# -----------------------------------------
+# SQLite / Local Databases
+# -----------------------------------------
+electron/database/*.db
+electron/database/*.db-shm
+electron/database/*.db-wal
+
+# Backup DB exports
+*.sqlite
+*.sqlite3
+*.db*
+/backup-db/
+
+# -----------------------------------------
+# React / Vite Cache
+# -----------------------------------------
+coverage/
+.vite/
+.cache/
+.eslintcache
+
+# -----------------------------------------
+# Logs
+# -----------------------------------------
+logs/
+*.log
+log.txt
+
+# -----------------------------------------
+# System Files
+# -----------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vs

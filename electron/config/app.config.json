@@ -1,0 +1,19 @@
+{
+  "appName": "Xnoll Desktop",
+  "version": "1.0.0",
+  "author": "Xnoll Team",
+  "features": {
+    "offlineMode": true,
+    "syncEnabled": true,
+    "licenseRequired": true,
+    "autoBackup": true,
+    "reminders": true
+  },
+  "defaultSettings": {
+    "theme": "light",
+    "language": "en",
+    "currency": "INR",
+    "dateFormat": "DD/MM/YYYY",
+    "timezone": "Asia/Kolkata"
+  }
+}

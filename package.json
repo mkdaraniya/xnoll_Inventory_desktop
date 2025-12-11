@@ -1,0 +1,122 @@
+{
+  "name": "xnoll-offline-booking",
+  "version": "1.0.0",
+  "description": "Offline-first booking and appointment management system",
+  "author": "Xnoll Team",
+  "license": "Commercial",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite --config vite.config.mts --mode development",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "build:renderer": "vite build --config vite.config.mts --mode production",
+    "build:electron": "cross-env NODE_ENV=production electron-builder",
+    "build": "npm run build:renderer && npm run build:electron",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-builder install-app-deps && npm run rebuild",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src electron",
+    "format": "prettier --write \"src/**/*.{js,jsx}\" \"electron/**/*.js\""
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "better-sqlite3": "^12.5.0",
+    "dayjs": "^1.11.19",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "sweetalert2": "^11.26.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.0",
+    "prettier": "^3.2.5",
+    "vite": "^5.4.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.xnoll.desktop",
+    "productName": "Xnoll Desktop",
+    "directories": {
+      "output": "dist/build",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/renderer/**/*",
+      "electron/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Xnoll Desktop",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.business",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "icon": "build/icons",
+      "category": "Office",
+      "maintainer": "support@xnoll.com"
+    }
+  },
+  "keywords": [
+    "booking",
+    "appointment",
+    "scheduling",
+    "salon",
+    "spa",
+    "offline",
+    "desktop"
+  ]
+}
