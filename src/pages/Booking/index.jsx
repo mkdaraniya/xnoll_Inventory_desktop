@@ -66,7 +66,7 @@ const BookingPage = () => {
         window.xnoll.invoicesList(),
         window.xnoll.customFieldsList('bookings'),
       ]);
-      setBookings(bookingRows?.data || []);
+      setBookings(bookingRows);
       setCustomers(customerRows);
       setProducts(productRows);
       setInvoices(invoiceRows);

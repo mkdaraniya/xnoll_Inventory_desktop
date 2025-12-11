@@ -33,9 +33,7 @@ contextBridge.exposeInMainWorld("xnoll", {
   productsDelete: (id) => ipcRenderer.invoke("products:delete", id),
 
   // Bookings API
-  bookingsList(page = 1, perPage = 20) {
-    return ipcRenderer.invoke("bookings:list", { page, perPage });
-  },
+  bookingsList: (payload) => ipcRenderer.invoke("bookings:list", payload),
   bookingsCreate: (payload) => ipcRenderer.invoke("bookings:create", payload),
   bookingsUpdate: (payload) => ipcRenderer.invoke("bookings:update", payload),
   bookingsDelete: (id) => ipcRenderer.invoke("bookings:delete", id),

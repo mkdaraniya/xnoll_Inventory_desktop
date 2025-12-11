@@ -121,8 +121,7 @@ const statements = {
     LEFT JOIN customers c ON b.customer_id = c.id
     LEFT JOIN products p ON b.product_id = p.id
     ORDER BY b.id DESC
-    LIMIT ? OFFSET ?
-  `),
+`),
   getBookingsInRange: db.prepare(`
     SELECT b.*,
            c.name as customer_name,
@@ -306,15 +305,13 @@ function getProductsWithCustomFields() {
   return products;
 }
 
-function getBookingsWithCustomFields(page = 1, perPage = 20) {
-  const offset = (page - 1) * perPage;
-
-  const bookings = statements.getAllBookings.all(perPage, offset);
+function getBookingsWithCustomFields(p) {
+  const bookings = statements.getAllBookings.all();
   const customFields = getAllCustomFields("bookings");
 
-  // if (customFields.length === 0) {
-  //   return bookings;
-  // }
+  if (customFields.length === 0) {
+    return bookings;
+  }
 
   // For each booking, fetch their custom field values
   for (const booking of bookings) {
@@ -323,20 +320,14 @@ function getBookingsWithCustomFields(page = 1, perPage = 20) {
       const value = statements.getCustomFieldValues.get(field.id, booking.id);
       if (value) {
         booking.custom_fields[field.name] = value.value;
-      }
     }
   }
+  }
 
-  const total = statements.getAllBookings.all().length;
-
-  return {
-    rows: bookings,
-    total,
-    page,
-    perPage,
-    totalPages: Math.ceil(total / perPage)
-  };
+  return bookings;
 }
+
+
 
 function listBookingsInRange(start, end) {
   return statements.getBookingsInRange.all(start, end);

@@ -2,8 +2,8 @@ const { ipcMain } = require('electron');
 const db = require('../database/db');
 
 // list
-ipcMain.handle('bookings:list', async (page, perPage) => {
-  return db.getBookingsWithCustomFields(page, perPage);
+ipcMain.handle('bookings:list', async () => {
+    return db.getBookingsWithCustomFields();
 });
 
 // create
