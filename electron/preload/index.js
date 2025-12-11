@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld("xnoll", {
     name: "Xnoll Desktop",
     env,
   }),
-  
+
   // Navigation
   onNavigate: (callback) => {
     const handler = (_event, page) => callback(page);
@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld("xnoll", {
     // Return a cleanup function
     return () => ipcRenderer.removeListener("navigate", handler);
   },
-  
+
   // Database - Generic
   dbSelect: (table) => ipcRenderer.invoke("db:select", table),
 
@@ -27,100 +27,122 @@ contextBridge.exposeInMainWorld("xnoll", {
   customersDelete: (id) => ipcRenderer.invoke("customers:delete", id),
 
   // Products API
-  productsList: () => ipcRenderer.invoke('products:list'),
-  productsCreate: (payload) => ipcRenderer.invoke('products:create', payload),
-  productsUpdate: (payload) => ipcRenderer.invoke('products:update', payload),
-  productsDelete: (id) => ipcRenderer.invoke('products:delete', id),
+  productsList: () => ipcRenderer.invoke("products:list"),
+  productsCreate: (payload) => ipcRenderer.invoke("products:create", payload),
+  productsUpdate: (payload) => ipcRenderer.invoke("products:update", payload),
+  productsDelete: (id) => ipcRenderer.invoke("products:delete", id),
 
   // Bookings API
-  bookingsList: () => ipcRenderer.invoke('bookings:list'),
-  bookingsCreate: (payload) => ipcRenderer.invoke('bookings:create', payload),
-  bookingsUpdate: (payload) => ipcRenderer.invoke('bookings:update', payload),
-  bookingsDelete: (id) => ipcRenderer.invoke('bookings:delete', id),
+  bookingsList(page = 1, perPage = 20) {
+    return ipcRenderer.invoke("bookings:list", { page, perPage });
+  },
+  bookingsCreate: (payload) => ipcRenderer.invoke("bookings:create", payload),
+  bookingsUpdate: (payload) => ipcRenderer.invoke("bookings:update", payload),
+  bookingsDelete: (id) => ipcRenderer.invoke("bookings:delete", id),
 
   // Invoices API
-  invoicesList: () => ipcRenderer.invoke('invoices:list'),
-  invoicesCreate: (payload) => ipcRenderer.invoke('invoices:create', payload),
-  invoicesUpdate: (payload) => ipcRenderer.invoke('invoices:update', payload),
-  invoicesDelete: (id) => ipcRenderer.invoke('invoices:delete', id),
-  
+  invoicesList: () => ipcRenderer.invoke("invoices:list"),
+  invoicesCreate: (payload) => ipcRenderer.invoke("invoices:create", payload),
+  invoicesUpdate: (payload) => ipcRenderer.invoke("invoices:update", payload),
+  invoicesDelete: (id) => ipcRenderer.invoke("invoices:delete", id),
+
   // License API
-  licenseGetMachineId: () => ipcRenderer.invoke('license:getMachineId'),
-  licenseActivate: (key) => ipcRenderer.invoke('license:activate', key),
-  licenseCheck: () => ipcRenderer.invoke('license:check'),
-  licenseDeactivate: () => ipcRenderer.invoke('license:deactivate'),
-  licenseGenerate: (params) => ipcRenderer.invoke('license:generate', params), // Demo only
-  
+  licenseGetMachineId: () => ipcRenderer.invoke("license:getMachineId"),
+  licenseActivate: (key) => ipcRenderer.invoke("license:activate", key),
+  licenseCheck: () => ipcRenderer.invoke("license:check"),
+  licenseDeactivate: () => ipcRenderer.invoke("license:deactivate"),
+  licenseGenerate: (params) => ipcRenderer.invoke("license:generate", params), // Demo only
+
   // Settings API
-  settingsGet: () => ipcRenderer.invoke('settings:get'),
-  settingsSave: (payload) => ipcRenderer.invoke('settings:save', payload),
-  
+  settingsGet: () => ipcRenderer.invoke("settings:get"),
+  settingsSave: (payload) => ipcRenderer.invoke("settings:save", payload),
+
   // Custom Fields API
-  customFieldsList: (module) => ipcRenderer.invoke('customFields:list', module),
-  customFieldsCreate: (payload) => ipcRenderer.invoke('customFields:create', payload),
-  customFieldsUpdate: (payload) => ipcRenderer.invoke('customFields:update', payload),
-  customFieldsDelete: (id) => ipcRenderer.invoke('customFields:delete', id),
-  customFieldValuesGet: (fieldId, recordId) => ipcRenderer.invoke('customFieldValues:get', { fieldId, recordId }),
-  customFieldValuesSave: (payload) => ipcRenderer.invoke('customFieldValues:save', payload),
-  
+  customFieldsList: (module) => ipcRenderer.invoke("customFields:list", module),
+  customFieldsCreate: (payload) =>
+    ipcRenderer.invoke("customFields:create", payload),
+  customFieldsUpdate: (payload) =>
+    ipcRenderer.invoke("customFields:update", payload),
+  customFieldsDelete: (id) => ipcRenderer.invoke("customFields:delete", id),
+  customFieldValuesGet: (fieldId, recordId) =>
+    ipcRenderer.invoke("customFieldValues:get", { fieldId, recordId }),
+  customFieldValuesSave: (payload) =>
+    ipcRenderer.invoke("customFieldValues:save", payload),
+
   // Notes API
-  notesList: () => ipcRenderer.invoke('notes:list'),
-  notesCreate: (payload) => ipcRenderer.invoke('notes:create', payload),
-  notesUpdate: (payload) => ipcRenderer.invoke('notes:update', payload),
-  notesDelete: (id) => ipcRenderer.invoke('notes:delete', id),
-  
+  notesList: () => ipcRenderer.invoke("notes:list"),
+  notesCreate: (payload) => ipcRenderer.invoke("notes:create", payload),
+  notesUpdate: (payload) => ipcRenderer.invoke("notes:update", payload),
+  notesDelete: (id) => ipcRenderer.invoke("notes:delete", id),
+
   // Reminders API
-  remindersList: (bookingId) => ipcRenderer.invoke('reminders:list', bookingId),
-  remindersCreate: (payload) => ipcRenderer.invoke('reminders:create', payload),
-  remindersUpdate: (payload) => ipcRenderer.invoke('reminders:update', payload),
-  remindersDelete: (id) => ipcRenderer.invoke('reminders:delete', id),
-  remindersCheck: () => ipcRenderer.invoke('reminders:check'), // Check for due reminders
-  
+  remindersList: (bookingId) => ipcRenderer.invoke("reminders:list", bookingId),
+  remindersCreate: (payload) => ipcRenderer.invoke("reminders:create", payload),
+  remindersUpdate: (payload) => ipcRenderer.invoke("reminders:update", payload),
+  remindersDelete: (id) => ipcRenderer.invoke("reminders:delete", id),
+  remindersCheck: () => ipcRenderer.invoke("reminders:check"), // Check for due reminders
+
   // Search API
-  searchGlobal: (query) => ipcRenderer.invoke('search:global', query),
-  searchModule: (module, query) => ipcRenderer.invoke('search:module', { module, query }),
-  
+  searchGlobal: (query) => ipcRenderer.invoke("search:global", query),
+  searchModule: (module, query) =>
+    ipcRenderer.invoke("search:module", { module, query }),
+
   // Backup & Restore API
-  backupCreate: (location) => ipcRenderer.invoke('backup:create', location),
-  backupRestore: (filePath) => ipcRenderer.invoke('backup:restore', filePath),
-  backupList: () => ipcRenderer.invoke('backup:list'),
-  backupExport: () => ipcRenderer.invoke('backup:export'),
-  
+  backupCreate: (location) => ipcRenderer.invoke("backup:create", location),
+  backupRestore: (filePath) => ipcRenderer.invoke("backup:restore", filePath),
+  backupList: () => ipcRenderer.invoke("backup:list"),
+  backupExport: () => ipcRenderer.invoke("backup:export"),
+
   // Reports API
-  reportsGenerate: (type, params) => ipcRenderer.invoke('reports:generate', { type, params }),
-  reportsExport: (type, format, params) => ipcRenderer.invoke('reports:export', { type, format, params }),
-  
+  reportsGenerate: (type, params) =>
+    ipcRenderer.invoke("reports:generate", { type, params }),
+  reportsExport: (type, format, params) =>
+    ipcRenderer.invoke("reports:export", { type, format, params }),
+
   // Error Reporting API
-  errorReport: (errorData) => ipcRenderer.invoke('error:report', errorData),
-  
+  errorReport: (errorData) => ipcRenderer.invoke("error:report", errorData),
+
   // SKU Generation API
-  skuGenerate: (prefix) => ipcRenderer.invoke('sku:generate', prefix),
-  skuValidate: (sku) => ipcRenderer.invoke('sku:validate', sku),
-  
+  skuGenerate: (prefix) => ipcRenderer.invoke("sku:generate", prefix),
+  skuValidate: (sku) => ipcRenderer.invoke("sku:validate", sku),
+
   // Company Profile API
-  companyGet: () => ipcRenderer.invoke('company:get'),
-  companySave: (payload) => ipcRenderer.invoke('company:save', payload),
-  
+  companyGet: () => ipcRenderer.invoke("company:get"),
+  companySave: (payload) => ipcRenderer.invoke("company:save", payload),
+
   // Calendar API
-  calendarGetBookings: (startDate, endDate) => ipcRenderer.invoke('calendar:getBookings', { startDate, endDate }),
-  
+  calendarGetBookings: (startDate, endDate) =>
+    ipcRenderer.invoke("calendar:getBookings", { startDate, endDate }),
+
   // Notifications (from main process)
   onNotification: (callback) => {
-    ipcRenderer.on('notification', (_event, data) => callback(data));
+    ipcRenderer.on("notification", (_event, data) => callback(data));
   },
-  
+
   // System API
-  systemInfo: () => ipcRenderer.invoke('system:info'),
-  
+  systemInfo: () => ipcRenderer.invoke("system:info"),
+
   // File operations
-  selectFile: (options) => ipcRenderer.invoke('file:select', options),
-  selectDirectory: () => ipcRenderer.invoke('file:selectDirectory'),
-  
+  selectFile: (options) => ipcRenderer.invoke("file:select", options),
+  selectDirectory: () => ipcRenderer.invoke("file:selectDirectory"),
+
+  // Seeder logs & progress
+  onSeederLog: (callback) => {
+    const handler = (_event, log) => callback(log);
+    ipcRenderer.on("seeder:log", handler);
+    return () => ipcRenderer.removeListener("seeder:log", handler);
+  },
+  onSeederFinished: (callback) => {
+    const handler = (_event, code) => callback(code);
+    ipcRenderer.on("seeder:finished", handler);
+    return () => ipcRenderer.removeListener("seeder:finished", handler);
+  },
+
   // Print
-  print: (htmlContent) => ipcRenderer.invoke('print:html', htmlContent)
+  print: (htmlContent) => ipcRenderer.invoke("print:html", htmlContent),
 });
 
-
+// electron/preload/index.js (in the "api" exposure)
 contextBridge.exposeInMainWorld("api", {
-  runSeeder: () => ipcRenderer.invoke("dev:run-seeder")
+  runSeeder: () => ipcRenderer.invoke("dev:run-seeder"), // Now works with handle
 });

@@ -8,11 +8,39 @@ const Dashboard = () => {
     bookingsToday: 0,
     bookingsUpcoming: 0,
     invoicesUnpaid: 0,
-    invoicesTodayTotal: 0
+    invoicesTodayTotal: 0,
   });
 
   const [recentBookings, setRecentBookings] = useState([]);
   const [recentInvoices, setRecentInvoices] = useState([]);
+
+  const getBookingBadge = (status) => {
+    switch ((status || "").toLowerCase()) {
+      case "pending":
+        return "badge bg-warning text-dark";
+      case "confirmed":
+        return "badge bg-primary";
+      case "completed":
+        return "badge bg-success";
+      case "cancelled":
+        return "badge bg-danger";
+      default:
+        return "badge bg-secondary";
+    }
+  };
+
+  const getInvoiceBadge = (status) => {
+    switch ((status || "").toLowerCase()) {
+      case "paid":
+        return "badge bg-success";
+      case "unpaid":
+        return "badge bg-danger";
+      case "partial":
+        return "badge bg-warning text-dark";
+      default:
+        return "badge bg-secondary";
+    }
+  };
 
   const loadData = async () => {
     if (!window.xnoll) return;
@@ -22,7 +50,7 @@ const Dashboard = () => {
         window.xnoll.customersList(),
         window.xnoll.productsList(),
         window.xnoll.bookingsList(),
-        window.xnoll.invoicesList()
+        window.xnoll.invoicesList(),
       ]);
 
       const todayStr = new Date().toISOString().slice(0, 10);
@@ -46,12 +74,16 @@ const Dashboard = () => {
 
       // Sort bookings by date desc and take last 5
       const recentB = [...bookings]
-        .sort((a, b) => (b.booking_date || "").localeCompare(a.booking_date || ""))
+        .sort((a, b) =>
+          (b.booking_date || "").localeCompare(a.booking_date || "")
+        )
         .slice(0, 5);
 
       // Sort invoices by date desc and take last 5
       const recentI = [...invoices]
-        .sort((a, b) => (b.invoice_date || "").localeCompare(a.invoice_date || ""))
+        .sort((a, b) =>
+          (b.invoice_date || "").localeCompare(a.invoice_date || "")
+        )
         .slice(0, 5);
 
       setCards({
@@ -60,7 +92,7 @@ const Dashboard = () => {
         bookingsToday,
         bookingsUpcoming,
         invoicesUnpaid,
-        invoicesTodayTotal
+        invoicesTodayTotal,
       });
       setRecentBookings(recentB);
       setRecentInvoices(recentI);
@@ -122,7 +154,9 @@ const Dashboard = () => {
             <div className="card-body">
               <h6 className="text-muted mb-1">Bookings Today</h6>
               <h3 className="mb-1">{cards.bookingsToday}</h3>
-              <small className="text-primary">Appointments scheduled today</small>
+              <small className="text-primary">
+                Appointments scheduled today
+              </small>
             </div>
           </div>
         </div>
@@ -154,10 +188,12 @@ const Dashboard = () => {
               <h3 className="mb-1">
                 ₹
                 {cards.invoicesTodayTotal.toLocaleString("en-IN", {
-                  maximumFractionDigits: 2
+                  maximumFractionDigits: 2,
                 })}
               </h3>
-              <small className="text-muted">Total invoice amount for today</small>
+              <small className="text-muted">
+                Total invoice amount for today
+              </small>
             </div>
           </div>
         </div>
@@ -191,7 +227,7 @@ const Dashboard = () => {
                         <td>{b.service_name}</td>
                         <td>{b.booking_date}</td>
                         <td>
-                          <span className="badge bg-secondary text-capitalize">
+                          <span className={getBookingBadge(b.status)}>
                             {b.status || "pending"}
                           </span>
                         </td>
@@ -237,7 +273,7 @@ const Dashboard = () => {
                         <td>{inv.invoice_date}</td>
                         <td>{inv.total}</td>
                         <td>
-                          <span className="badge bg-secondary text-uppercase">
+                          <span className={getInvoiceBadge(inv.status)}>
                             {(inv.status || "unpaid").replace("_", " ")}
                           </span>
                         </td>

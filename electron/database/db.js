@@ -13,11 +13,11 @@ const dbPath = isDev
 const db = new Database(dbPath);
 
 // Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
-db.pragma('synchronous = NORMAL');
-db.pragma('cache_size = 1000000');
-db.pragma('foreign_keys = ON');
-db.pragma('temp_store = memory');
+db.pragma("journal_mode = WAL");
+db.pragma("synchronous = NORMAL");
+db.pragma("cache_size = 1000000");
+db.pragma("foreign_keys = ON");
+db.pragma("temp_store = memory");
 
 // --- migrations runner (idempotent) ---
 function runMigrations() {
@@ -29,7 +29,9 @@ function runMigrations() {
 
   // Prepare statements
   const getMigration = db.prepare("SELECT name FROM migrations WHERE name = ?");
-  const insertMigration = db.prepare("INSERT INTO migrations (name) VALUES (?)");
+  const insertMigration = db.prepare(
+    "INSERT INTO migrations (name) VALUES (?)"
+  );
 
   const files = fs
     .readdirSync(migrationsDir)
@@ -119,6 +121,7 @@ const statements = {
     LEFT JOIN customers c ON b.customer_id = c.id
     LEFT JOIN products p ON b.product_id = p.id
     ORDER BY b.id DESC
+    LIMIT ? OFFSET ?
   `),
   getBookingsInRange: db.prepare(`
     SELECT b.*,
@@ -161,7 +164,9 @@ const statements = {
     WHERE id = ?
   `),
   deleteNote: db.prepare("DELETE FROM notes WHERE id = ?"),
-  getAllNotes: db.prepare("SELECT * FROM notes ORDER BY is_pinned DESC, id DESC"),
+  getAllNotes: db.prepare(
+    "SELECT * FROM notes ORDER BY is_pinned DESC, id DESC"
+  ),
 
   // Custom Fields
   insertCustomField: db.prepare(`
@@ -192,7 +197,9 @@ const statements = {
       updated_at
     FROM custom_fields ORDER BY field_order, id
   `),
-  getCustomFieldValues: db.prepare("SELECT value FROM custom_field_values WHERE custom_field_id = ? AND record_id = ?"),
+  getCustomFieldValues: db.prepare(
+    "SELECT value FROM custom_field_values WHERE custom_field_id = ? AND record_id = ?"
+  ),
   saveCustomFieldValue: db.prepare(`
     INSERT OR REPLACE INTO custom_field_values (custom_field_id, record_id, value, created_at, updated_at)
     VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -209,7 +216,9 @@ const statements = {
   `),
   deleteReminder: db.prepare("DELETE FROM reminders WHERE id = ?"),
   getAllReminders: db.prepare("SELECT * FROM reminders ORDER BY reminder_time"),
-  getDueReminders: db.prepare("SELECT * FROM reminders WHERE reminder_time <= ? AND status = 'pending'"),
+  getDueReminders: db.prepare(
+    "SELECT * FROM reminders WHERE reminder_time <= ? AND status = 'pending'"
+  ),
 
   // Company Profile
   getCompanyProfile: db.prepare("SELECT * FROM company WHERE id = 1"),
@@ -219,12 +228,16 @@ const statements = {
   `),
 
   // SKU validation
-  checkSkuExists: db.prepare("SELECT id FROM products WHERE sku = ? AND id != ?"),
+  checkSkuExists: db.prepare(
+    "SELECT id FROM products WHERE sku = ? AND id != ?"
+  ),
 };
 
 // Helper function for custom fields
 function getAllCustomFields(module) {
-  const allFields = db.prepare(`
+  const allFields = db
+    .prepare(
+      `
     SELECT
       id,
       field_name as name,
@@ -242,14 +255,16 @@ function getAllCustomFields(module) {
       created_at,
       updated_at
     FROM custom_fields ORDER BY field_order, id
-  `).all();
-  return module ? allFields.filter(f => f.module === module) : allFields;
+  `
+    )
+    .all();
+  return module ? allFields.filter((f) => f.module === module) : allFields;
 }
 
 // --- Helper functions ---
 function getCustomersWithCustomFields() {
   const customers = statements.getAllCustomers.all();
-  const customFields = getAllCustomFields('customers');
+  const customFields = getAllCustomFields("customers");
 
   if (customFields.length === 0) {
     return customers;
@@ -271,7 +286,7 @@ function getCustomersWithCustomFields() {
 
 function getProductsWithCustomFields() {
   const products = statements.getAllProducts.all();
-  const customFields = getAllCustomFields('products');
+  const customFields = getAllCustomFields("products");
 
   if (customFields.length === 0) {
     return products;
@@ -291,13 +306,15 @@ function getProductsWithCustomFields() {
   return products;
 }
 
-function getBookingsWithCustomFields() {
-  const bookings = statements.getAllBookings.all();
-  const customFields = getAllCustomFields('bookings');
+function getBookingsWithCustomFields(page = 1, perPage = 20) {
+  const offset = (page - 1) * perPage;
 
-  if (customFields.length === 0) {
-    return bookings;
-  }
+  const bookings = statements.getAllBookings.all(perPage, offset);
+  const customFields = getAllCustomFields("bookings");
+
+  // if (customFields.length === 0) {
+  //   return bookings;
+  // }
 
   // For each booking, fetch their custom field values
   for (const booking of bookings) {
@@ -310,7 +327,15 @@ function getBookingsWithCustomFields() {
     }
   }
 
-  return bookings;
+  const total = statements.getAllBookings.all().length;
+
+  return {
+    rows: bookings,
+    total,
+    page,
+    perPage,
+    totalPages: Math.ceil(total / perPage)
+  };
 }
 
 function listBookingsInRange(start, end) {
@@ -339,39 +364,76 @@ function getBookingById(id) {
 module.exports = {
   // Settings
   getSettings: () => statements.getSettings.get(),
-  updateSettings: (data) => statements.updateSettings.run(
-    data.company_name, data.currency, data.auto_generate_sku, data.sku_prefix,
-    data.enable_reminders, data.reminder_lead_minutes, data.language
-  ),
+  updateSettings: (data) =>
+    statements.updateSettings.run(
+      data.company_name,
+      data.currency,
+      data.auto_generate_sku,
+      data.sku_prefix,
+      data.enable_reminders,
+      data.reminder_lead_minutes,
+      data.language
+    ),
 
   // Customers
   insertCustomer: (data) => {
-    const result = statements.insertCustomer.run(data.name, data.phone, data.email);
+    const result = statements.insertCustomer.run(
+      data.name,
+      data.phone,
+      data.email
+    );
     return { id: result.lastInsertRowid };
   },
-  updateCustomer: (data) => statements.updateCustomer.run(data.name, data.phone, data.email, data.id),
+  updateCustomer: (data) =>
+    statements.updateCustomer.run(data.name, data.phone, data.email, data.id),
   deleteCustomer: (id) => statements.deleteCustomer.run(id),
   getCustomersWithCustomFields,
 
   // Products
   insertProduct: (data) => {
-    const result = statements.insertProduct.run(data.sku, data.name, data.unit, data.price, data.discount || 0);
+    const result = statements.insertProduct.run(
+      data.sku,
+      data.name,
+      data.unit,
+      data.price,
+      data.discount || 0
+    );
     return { id: result.lastInsertRowid };
   },
-  updateProduct: (data) => statements.updateProduct.run(data.sku, data.name, data.unit, data.price, data.discount || 0, data.id),
+  updateProduct: (data) =>
+    statements.updateProduct.run(
+      data.sku,
+      data.name,
+      data.unit,
+      data.price,
+      data.discount || 0,
+      data.id
+    ),
   deleteProduct: (id) => statements.deleteProduct.run(id),
   getProductsWithCustomFields,
 
   // Bookings
   insertBooking: (data) => {
     const result = statements.insertBooking.run(
-      data.customer_id, data.product_id, data.service_name, data.booking_date, data.status || 'pending', data.discount || 0
+      data.customer_id,
+      data.product_id,
+      data.service_name,
+      data.booking_date,
+      data.status || "pending",
+      data.discount || 0
     );
     return { id: result.lastInsertRowid };
   },
-  updateBooking: (data) => statements.updateBooking.run(
-    data.customer_id, data.product_id, data.service_name, data.booking_date, data.status, data.discount || 0, data.id
-  ),
+  updateBooking: (data) =>
+    statements.updateBooking.run(
+      data.customer_id,
+      data.product_id,
+      data.service_name,
+      data.booking_date,
+      data.status,
+      data.discount || 0,
+      data.id
+    ),
   deleteBooking: (id) => statements.deleteBooking.run(id),
   getBookingsWithCustomFields,
   listBookingsInRange,
@@ -379,61 +441,127 @@ module.exports = {
   // Invoices
   insertInvoice: (data) => {
     const result = statements.insertInvoice.run(
-      data.customer_id, data.booking_id, data.total, data.discount || 0, data.invoice_date, data.status || 'unpaid'
+      data.customer_id,
+      data.booking_id,
+      data.total,
+      data.discount || 0,
+      data.invoice_date,
+      data.status || "unpaid"
     );
     return { id: result.lastInsertRowid };
   },
-  updateInvoice: (data) => statements.updateInvoice.run(
-    data.customer_id, data.booking_id, data.total, data.discount || 0, data.invoice_date, data.status, data.id
-  ),
+  updateInvoice: (data) =>
+    statements.updateInvoice.run(
+      data.customer_id,
+      data.booking_id,
+      data.total,
+      data.discount || 0,
+      data.invoice_date,
+      data.status,
+      data.id
+    ),
   deleteInvoice: (id) => statements.deleteInvoice.run(id),
   getAllInvoices: () => statements.getAllInvoices.all(),
 
-// Notes
-insertNote: (data) => {
-  const result = statements.insertNote.run(data.title, data.content, data.tags, data.is_pinned || 0);
-  return { id: result.lastInsertRowid };
-},
-updateNote: (data) => statements.updateNote.run(data.title, data.content, data.tags, data.is_pinned || 0, data.id),
-deleteNote: (id) => statements.deleteNote.run(id),
-getAllNotes: () => statements.getAllNotes.all(),
+  // Notes
+  insertNote: (data) => {
+    const result = statements.insertNote.run(
+      data.title,
+      data.content,
+      data.tags,
+      data.is_pinned || 0
+    );
+    return { id: result.lastInsertRowid };
+  },
+  updateNote: (data) =>
+    statements.updateNote.run(
+      data.title,
+      data.content,
+      data.tags,
+      data.is_pinned || 0,
+      data.id
+    ),
+  deleteNote: (id) => statements.deleteNote.run(id),
+  getAllNotes: () => statements.getAllNotes.all(),
 
-// Custom Fields
-insertCustomField: (data) => {
-  const result = statements.insertCustomField.run(
-    data.field_name, data.field_label, data.module, data.field_type, data.is_required, data.display_in_grid,
-    data.display_in_filter, data.is_sortable, data.is_searchable, data.options, data.default_value
-  );
-  return { id: result.lastInsertRowid };
-},
-updateCustomField: (data) => statements.updateCustomField.run(
-  data.field_name, data.field_label, data.module, data.field_type, data.is_required, data.display_in_grid,
-  data.display_in_filter, data.is_sortable, data.is_searchable, data.options, data.default_value, data.id
-),
-deleteCustomField: (id) => statements.deleteCustomField.run(id),
+  // Custom Fields
+  insertCustomField: (data) => {
+    const result = statements.insertCustomField.run(
+      data.field_name,
+      data.field_label,
+      data.module,
+      data.field_type,
+      data.is_required,
+      data.display_in_grid,
+      data.display_in_filter,
+      data.is_sortable,
+      data.is_searchable,
+      data.options,
+      data.default_value
+    );
+    return { id: result.lastInsertRowid };
+  },
+  updateCustomField: (data) =>
+    statements.updateCustomField.run(
+      data.field_name,
+      data.field_label,
+      data.module,
+      data.field_type,
+      data.is_required,
+      data.display_in_grid,
+      data.display_in_filter,
+      data.is_sortable,
+      data.is_searchable,
+      data.options,
+      data.default_value,
+      data.id
+    ),
+  deleteCustomField: (id) => statements.deleteCustomField.run(id),
   getAllCustomFields: (module) => {
     const allFields = statements.getAllCustomFields.all();
-    return module ? allFields.filter(f => f.module === module) : allFields;
+    return module ? allFields.filter((f) => f.module === module) : allFields;
   },
-getCustomFieldValues: (fieldId, recordId) => statements.getCustomFieldValues.get(fieldId, recordId),
-saveCustomFieldValue: (data) => statements.saveCustomFieldValue.run(data.custom_field_id, data.record_id, data.value),
+  getCustomFieldValues: (fieldId, recordId) =>
+    statements.getCustomFieldValues.get(fieldId, recordId),
+  saveCustomFieldValue: (data) =>
+    statements.saveCustomFieldValue.run(
+      data.custom_field_id,
+      data.record_id,
+      data.value
+    ),
 
   // Reminders
   insertReminder: (data) => {
-    const result = statements.insertReminder.run(data.booking_id, data.reminder_time, data.status || 'pending');
+    const result = statements.insertReminder.run(
+      data.booking_id,
+      data.reminder_time,
+      data.status || "pending"
+    );
     return { id: result.lastInsertRowid };
   },
-  updateReminder: (data) => statements.updateReminder.run(data.booking_id, data.reminder_time, data.status, data.id),
+  updateReminder: (data) =>
+    statements.updateReminder.run(
+      data.booking_id,
+      data.reminder_time,
+      data.status,
+      data.id
+    ),
   deleteReminder: (id) => statements.deleteReminder.run(id),
   getAllReminders: () => statements.getAllReminders.all(),
   getDueReminders: (currentTime) => statements.getDueReminders.all(currentTime),
 
-// Company Profile
-getCompanyProfile: () => statements.getCompanyProfile.get(),
-updateCompanyProfile: (data) => statements.updateCompanyProfile.run(
-  data.name, data.address, data.phone, data.email, data.website,
-  data.tax_id, data.logo_path
-),
+  // Company Profile
+  getCompanyProfile: () => statements.getCompanyProfile.get(),
+  updateCompanyProfile: (data) =>
+    statements.updateCompanyProfile.run(
+      data.name,
+      data.address,
+      data.phone,
+      data.email,
+      data.website,
+      data.tax_id,
+      data.logo_path
+    ),
 
   // SKU validation
   checkSkuExists,

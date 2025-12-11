@@ -60,13 +60,13 @@ const BookingPage = () => {
     setLoading(true);
     try {
       const [bookingRows, customerRows, productRows, invoiceRows, customFieldsRows] = await Promise.all([
-        window.xnoll.bookingsList(),
+        window.xnoll.bookingsList(1, 20),
         window.xnoll.customersList(),
         window.xnoll.productsList(),
         window.xnoll.invoicesList(),
         window.xnoll.customFieldsList('bookings'),
       ]);
-      setBookings(bookingRows);
+      setBookings(bookingRows?.data || []);
       setCustomers(customerRows);
       setProducts(productRows);
       setInvoices(invoiceRows);

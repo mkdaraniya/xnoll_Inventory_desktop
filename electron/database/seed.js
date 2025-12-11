@@ -8,11 +8,11 @@ const Database = require("better-sqlite3");
 const { faker } = require("@faker-js/faker");
 
 // CONFIG - change these numbers if you want different distribution
-const CUSTOMERS = 200;
-const PRODUCTS  = 50;
-const BOOKINGS  = 800;   // must match INVOICES if you want 1 invoice per booking
-const INVOICES  = 800;   // = BOOKINGS
-const NOTES     = 20;
+const CUSTOMERS = 20000;
+const PRODUCTS  = 5000;
+const BOOKINGS  = 80000;   // must match INVOICES if you want 1 invoice per booking
+const INVOICES  = 80000;   // = BOOKINGS
+const NOTES     = 2000;
 
 // Batch sizes for transactions (tweak if you run into memory issues)
 const BATCH_SIZE = 1000;

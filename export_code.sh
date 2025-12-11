@@ -46,6 +46,7 @@ for FOLDER in "${FOLDERS[@]}"; do
             ! -name "*.mp3" \
             ! -name "*.pdf" \
             ! -name "*.db" \
+            ! -name "*.bak" \
             ! -name "*.sqlite" \
             ! -name "*.sqlite3" \
             ! -name "*.db3" \
