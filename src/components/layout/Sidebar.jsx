@@ -12,7 +12,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
     <aside className="sidebar border-end bg-white">
       <div className="p-3 border-bottom">
         <h6 className="mb-0 text-primary fw-bold">Xnoll Menu</h6>
-        <small className="text-muted">{t('nav.quickAccess', 'Quick access')}</small>
+        <small className="text-muted">Quick access</small>
       </div>
       <div className="list-group list-group-flush">
         <button

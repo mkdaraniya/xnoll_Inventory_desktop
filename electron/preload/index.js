@@ -5,7 +5,7 @@ const env = process.env.NODE_ENV || "production";
 contextBridge.exposeInMainWorld("xnoll", {
   // App info
   getAppInfo: () => ({
-    name: "Xnoll Desktop",
+    name: "Xnoll Booking Desktop",
     env,
   }),
 

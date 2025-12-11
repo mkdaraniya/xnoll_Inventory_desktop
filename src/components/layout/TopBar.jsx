@@ -24,7 +24,7 @@ const TopBar = ({ env, onNavigate }) => {
             <line x1="8" y1="2" x2="8" y2="6"></line>
             <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
-          Xnoll Desktop
+          Xnoll Booking Desktop
         </span>
         
         <div className="d-flex align-items-center gap-3">
@@ -33,10 +33,10 @@ const TopBar = ({ env, onNavigate }) => {
           )}
           
           <small className="text-light d-none d-md-inline">
-            {t('common.offline')} · {t('common.syncReady')}
+            Offline
           </small>
           
-          <LanguageSwitcher />
+          {/* <LanguageSwitcher /> */}
           
           <button
             className="btn btn-sm btn-outline-light"

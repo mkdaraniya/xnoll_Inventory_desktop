@@ -211,8 +211,8 @@ const template = [
         click: () => {
           dialog.showMessageBox({
             type: 'info',
-            title: 'About Xnoll Desktop',
-            message: 'Xnoll Desktop',
+            title: 'About Xnoll Booking Desktop',
+            message: 'Xnoll Booking Desktop',
             detail: `Version: 1.0.0\nOffline-first booking and appointment system\n\n© 2024 Xnoll. All rights reserved.`,
             buttons: ['OK']
           });

@@ -11,12 +11,12 @@ import CodeGenerator from './CodeGenerator';
 const tabs = [
   { key: 'general', label: 'General' },
   { key: 'company', label: 'Company' },
-  { key: 'language', label: 'Language' },
-  { key: 'reminders', label: 'Reminders' },
+  // { key: 'language', label: 'Language' },
+  // { key: 'reminders', label: 'Reminders' },
   { key: 'custom', label: 'Custom Fields' },
-  { key: 'backup', label: 'Backup & Restore' },
+  // { key: 'backup', label: 'Backup & Restore' },
   { key: 'license', label: 'License' },
-  { key: 'code-generator', label: 'Code Generator' },
+  // { key: 'code-generator', label: 'Code Generator' },
 ];
 
 const Settings = () => {
@@ -28,8 +28,8 @@ const Settings = () => {
         return <General />;
       case 'company':
         return <Company />;
-      case 'language':
-        return <Language />;
+      // case 'language':
+      //   return <Language />;
       case 'reminders':
         return <Reminders />;
       case 'custom':

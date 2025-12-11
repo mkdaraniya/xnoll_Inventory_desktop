@@ -55,7 +55,7 @@ const en = {
   
   dashboard: {
     title: 'Dashboard',
-    welcome: 'Welcome to Xnoll Desktop',
+    welcome: 'Welcome to Xnoll Booking Desktop',
     overview: 'Overview',
     todayBookings: 'Today\'s Bookings',
     upcomingBookings: 'Upcoming Bookings',
@@ -367,7 +367,7 @@ const hi = {
   
   dashboard: {
     title: 'डैशबोर्ड',
-    welcome: 'Xnoll Desktop में आपका स्वागत है',
+    welcome: 'Xnoll Booking Desktop में आपका स्वागत है',
     overview: 'अवलोकन'
   },
   

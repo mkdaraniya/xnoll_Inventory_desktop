@@ -7,7 +7,7 @@ function createMainWindow(isDev) {
     height: 800,
     minWidth: 1024,
     minHeight: 640,
-    title: 'Xnoll Desktop',
+    title: 'Xnoll Booking Desktop',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

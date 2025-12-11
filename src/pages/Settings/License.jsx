@@ -85,18 +85,6 @@ const LicenseSettings = () => {
             </Button>
           </div>
         </form>
-        <div className="form-check form-check-inline mt-2">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            id="consent"
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-          />
-          <label className="form-check-label" htmlFor="consent">
-            If online, allow validation ping to xnoll.com
-          </label>
-        </div>
         <div className="mt-3">
           {status?.valid ? (
             <div className="alert alert-success py-2 mb-2">

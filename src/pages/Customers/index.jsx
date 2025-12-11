@@ -333,7 +333,7 @@ const Customers = () => {
           />
 
           <small className="text-muted d-block mt-2">
-            Data stored locally in SQLite, ready to sync with xnoll.com later.
+            Data stored locally in SQLite.
           </small>
         </div>
       </div>
