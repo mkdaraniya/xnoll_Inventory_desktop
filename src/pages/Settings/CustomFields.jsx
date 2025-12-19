@@ -295,7 +295,7 @@ const CustomFields = () => {
                 value={form.options}
                 onChange={(e) => setForm((f) => ({ ...f, options: e.target.value }))}
                 placeholder="option1,option2"
-                disabled={!['select', 'multi_select', 'checkbox_group', 'radio', 'radio_group'].includes(form.type)}
+                disabled={!['select'].includes(form.type)}
               />
             </div>
             <div className="col-md-4">

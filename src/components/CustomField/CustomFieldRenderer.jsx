@@ -25,11 +25,12 @@ const CustomFieldRenderer = ({
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
     setFieldValues(values);
-  }, [values]);
+}, [values]);
 
-  const handleFieldChange = (fieldName, value) => {
+
+const handleFieldChange = (fieldName, value) => {
     const newValues = { ...fieldValues, [fieldName]: value };
     setFieldValues(newValues);
     if (onChange) {
@@ -51,44 +52,8 @@ const CustomFieldRenderer = ({
       case 'number':
         return <input type="number" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
 
-      case 'email':
-        return <input type="email" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'phone':
-        return <input type="tel" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'url':
-        return <input type="url" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'textarea':
-        return (
-          <textarea
-            className="form-control"
-            rows="3"
-            {...baseFieldProps}
-            value={value}
-            onChange={(e) => handleFieldChange(field.name, e.target.value)}
-          />
-        );
-
       case 'date':
         return <input type="date" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'datetime':
-        return <input type="datetime-local" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'checkbox':
-        return (
-          <div className="form-check">
-            <input
-              type="checkbox"
-              className="form-check-input"
-              checked={value === '1' || value === true}
-              onChange={(e) => handleFieldChange(field.name, e.target.checked ? '1' : '0')}
-              disabled={loading}
-            />
-          </div>
-        );
 
       case 'select':
         const selectOptions = field.options ? parseOptions(field.options) : [];
@@ -107,102 +72,6 @@ const CustomFieldRenderer = ({
               </option>
             ))}
           </select>
-        );
-
-      case 'multi_select':
-        const multiSelectOptions = field.options ? parseOptions(field.options) : [];
-        // Robust selected logic: always trim and dedup
-        const selectedValues = (value ? value.split(',') : []).map(v => v.trim()).filter(Boolean);
-        return (
-          <div className="border border-secondary rounded p-2 bg-light" style={{ minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}>
-            <small className="text-muted d-block mb-2">Select multiple options:</small>
-            {multiSelectOptions.map((option, index) => {
-              const optionValue = option.trim();
-              const isSelected = selectedValues.includes(optionValue);
-              return (
-                <div key={index} className="form-check mb-1">
-                  <input
-                    type="checkbox"
-                    className="form-check-input"
-                    checked={isSelected}
-                    onChange={(e) => {
-                      let newSelected = [...selectedValues];
-                      if (e.target.checked) {
-                        if (!newSelected.includes(optionValue)) newSelected.push(optionValue);
-                      } else {
-                        newSelected = newSelected.filter(v => v !== optionValue);
-                      }
-                      handleFieldChange(field.name, newSelected.filter(Boolean).map(v => v.trim()).join(','));
-                    }}
-                    disabled={loading}
-                    id={`multi_${field.name}_${index}`}
-                  />
-                  <label className="form-check-label small" htmlFor={`multi_${field.name}_${index}`}>{optionValue}</label>
-                </div>
-              );
-            })}
-          </div>
-        );
-
-      case 'radio':
-        const radioOptions = field.options ? parseOptions(field.options) : [];
-        return (
-          <div>
-            {radioOptions.map((option, index) => {
-              const optionValue = option.trim();
-              return (
-                <div key={index} className="form-check">
-                  <input
-                    type="radio"
-                    className="form-check-input"
-                    name={`custom_${field.name}`}
-                    value={optionValue}
-                    checked={value === optionValue}
-                    onChange={(e) => handleFieldChange(field.name, optionValue)}
-                    disabled={loading}
-                    required={field.required === 1}
-                  />
-                  <label className="form-check-label">
-                    {optionValue}
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        );
-
-      case 'checkbox_group':
-        const checkboxOptions = field.options ? parseOptions(field.options) : [];
-        const checkedValues = (value ? value.split(',') : []).map(v => v.trim()).filter(Boolean);
-        return (
-          <div className="border border-secondary rounded p-2 bg-light" style={{ minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}>
-            <small className="text-muted d-block mb-2">Select multiple options:</small>
-            {checkboxOptions.map((option, index) => {
-              const optionValue = option.trim();
-              const isChecked = checkedValues.includes(optionValue);
-              return (
-                <div key={index} className="form-check mb-1">
-                  <input
-                    type="checkbox"
-                    className="form-check-input"
-                    checked={isChecked}
-                    onChange={(e) => {
-                      let newChecked = [...checkedValues];
-                      if (e.target.checked) {
-                        if (!newChecked.includes(optionValue)) newChecked.push(optionValue);
-                      } else {
-                        newChecked = newChecked.filter(v => v !== optionValue);
-                      }
-                      handleFieldChange(field.name, newChecked.filter(Boolean).map(v => v.trim()).join(','));
-                    }}
-                    disabled={loading}
-                    id={`checkbox_${field.name}_${index}`}
-                  />
-                  <label className="form-check-label small" htmlFor={`checkbox_${field.name}_${index}`}>{optionValue}</label>
-                </div>
-              );
-            })}
-          </div>
         );
 
       default:

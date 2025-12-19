@@ -117,6 +117,7 @@ const Customers = () => {
       if (customFields.length > 0 && customerId) {
         for (const field of customFields) {
           const value = customFieldValues[field.id];
+          console.log('my value ::', value, ' id : ', id);
           if (value !== undefined && value !== '') {
             await window.xnoll.customFieldValuesSave({
               field_id: field.id,
