@@ -4,7 +4,6 @@ import Company from './Company';
 import Language from './Language';
 import Reminders from './Reminders';
 import Backup from './Backup';
-import License from './License';
 import CustomFields from './CustomFields';
 import CodeGenerator from './CodeGenerator';
 
@@ -15,7 +14,6 @@ const tabs = [
   // { key: 'reminders', label: 'Reminders' },
   { key: 'custom', label: 'Custom Fields' },
   // { key: 'backup', label: 'Backup & Restore' },
-  { key: 'license', label: 'License' },
   // { key: 'code-generator', label: 'Code Generator' },
 ];
 

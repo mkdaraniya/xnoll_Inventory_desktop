@@ -16,25 +16,6 @@ const template = [
         }
       },
       { type: 'separator' },
-      {
-        label: 'Backup Database',
-        accelerator: 'CmdOrCtrl+B',
-        click: async () => {
-          const win = BrowserWindow.getAllWindows()[0];
-          if (win) {
-            win.webContents.send('action:backup');
-          }
-        }
-      },
-      {
-        label: 'Restore Database',
-        click: async () => {
-          const win = BrowserWindow.getAllWindows()[0];
-          if (win) {
-            win.webContents.send('action:restore');
-          }
-        }
-      },
       { type: 'separator' },
       {
         label: 'Settings',
@@ -129,11 +110,11 @@ const template = [
         label: 'Reload',
         accelerator: 'CmdOrCtrl+R'
       },
-      { 
-        role: 'togglefullscreen',
-        label: 'Toggle Fullscreen',
-        accelerator: process.platform === 'darwin' ? 'Ctrl+Command+F' : 'F11'
-      },
+      // { 
+      //   role: 'togglefullscreen',
+      //   label: 'Toggle Fullscreen',
+      //   accelerator: process.platform === 'darwin' ? 'Ctrl+Command+F' : 'F11'
+      // },
       ...(isDev
         ? [
             { type: 'separator' }, 
@@ -184,18 +165,18 @@ const template = [
   {
     label: 'Help',
     submenu: [
-      {
-        label: 'Keyboard Shortcuts',
-        accelerator: 'CmdOrCtrl+/',
-        click: () => {
-          const win = BrowserWindow.getAllWindows()[0];
-          if (win) win.webContents.send('show:shortcuts');
-        }
-      },
+      // {
+      //   label: 'Keyboard Shortcuts',
+      //   accelerator: 'CmdOrCtrl+/',
+      //   click: () => {
+      //     const win = BrowserWindow.getAllWindows()[0];
+      //     if (win) win.webContents.send('show:shortcuts');
+      //   }
+      // },
       { type: 'separator' },
       {
         label: 'Documentation',
-        click: () => shell.openExternal('https://docs.xnoll.com')
+        click: () => shell.openExternal('https://xnoll.com/xnoll-booking-desktop/docs')
       },
       {
         label: 'Open Website',

@@ -238,19 +238,19 @@ const en = {
     types: {
       text: 'Text',
       number: 'Number',
-      email: 'Email',
-      phone: 'Phone',
-      url: 'URL',
+      // email: 'Email',
+      // phone: 'Phone',
+      // url: 'URL',
       textarea: 'Text Area',
       date: 'Date',
-      datetime: 'Date & Time',
-      checkbox: 'Checkbox',
-      checkboxGroup: 'Checkbox Group',
-      radio: 'Radio',
-      radioGroup: 'Radio Group',
+      // datetime: 'Date & Time',
+      // checkbox: 'Checkbox',
+      // checkboxGroup: 'Checkbox Group',
+      // radio: 'Radio',
+      // radioGroup: 'Radio Group',
       select: 'Select',
-      multiSelect: 'Multi Select',
-      file: 'File Upload'
+      // multiSelect: 'Multi Select',
+      // file: 'File Upload'
     }
   },
   

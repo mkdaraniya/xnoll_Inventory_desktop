@@ -13,15 +13,8 @@ const modules = [
 const fieldTypes = [
   'text',
   'number',
-  'url',
   'date',
-  'datetime',
-  'checkbox',
-  'checkbox_group',
   'select',
-  'multi_select',
-  'radio',
-  'radio_group',
 ];
 
 const emptyForm = {
@@ -341,7 +334,7 @@ const CustomFields = () => {
                     Show in grid
                   </label>
                 </div>
-                <div className="form-check">
+                {/* <div className="form-check">
                   <input
                     className="form-check-input"
                     type="checkbox"
@@ -352,7 +345,7 @@ const CustomFields = () => {
                   <label className="form-check-label" htmlFor="cfFilter">
                     Filterable
                   </label>
-                </div>
+                </div> */}
                 <div className="form-check">
                   <input
                     className="form-check-input"

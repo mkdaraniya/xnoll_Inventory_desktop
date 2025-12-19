@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Pagination from "../../components/common/Pagination";
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency } from "../../utils/format";
 
 const STATUS_OPTIONS = ["unpaid", "partially_paid", "paid", "cancelled"];
 const PAGE_SIZE = 10;
@@ -10,7 +10,7 @@ const emptyForm = {
   customer_id: "",
   total: "",
   invoice_date: "",
-  status: "unpaid"
+  status: "unpaid",
 };
 
 const Invoices = () => {
@@ -30,7 +30,7 @@ const Invoices = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [currency, setCurrency] = useState('INR');
+  const [currency, setCurrency] = useState("INR");
 
   const customerInputRef = useRef(null);
 
@@ -46,7 +46,7 @@ const Invoices = () => {
       setInvoices(invoiceRows);
       setCustomers(customerRows);
       if (settingsRes?.success && settingsRes.settings) {
-        setCurrency(settingsRes.settings.currency || 'INR');
+        setCurrency(settingsRes.settings.currency || "INR");
       }
     } finally {
       setLoading(false);
@@ -203,7 +203,7 @@ const Invoices = () => {
       customer_id: Number(form.customer_id) || null,
       total: parseFloat(form.total || "0") || 0,
       invoice_date: form.invoice_date.trim(),
-      status: form.status || "unpaid"
+      status: form.status || "unpaid",
     };
 
     if (!payload.customer_id || !payload.invoice_date) {
@@ -234,7 +234,7 @@ const Invoices = () => {
       customer_id: inv.customer_id || "",
       total: inv.total != null ? String(inv.total) : "",
       invoice_date: inv.invoice_date || "",
-      status: inv.status || "unpaid"
+      status: inv.status || "unpaid",
     });
     const cust = customerMap[inv.customer_id];
     setCustomerSearch(cust ? `${cust.name} (ID: ${inv.customer_id})` : "");
@@ -272,9 +272,11 @@ const Invoices = () => {
   };
 
   const generateInvoiceHTML = (invoice) => {
-    const customer = customers.find(c => c.id === invoice.customer_id);
+    const customer = customers.find((c) => c.id === invoice.customer_id);
     const date = new Date(invoice.invoice_date).toLocaleDateString();
-    const status = invoice.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const status = invoice.status
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase());
 
     return `
       <!DOCTYPE html>
@@ -311,16 +313,20 @@ const Invoices = () => {
             </div>
           </div>
 
-          ${customer ? `
+          ${
+            customer
+              ? `
             <div class="customer-info">
               <h3>Bill To:</h3>
               <p>
                 ${customer.name}<br>
-                ${customer.phone ? `Phone: ${customer.phone}<br>` : ''}
-                ${customer.email ? `Email: ${customer.email}<br>` : ''}
+                ${customer.phone ? `Phone: ${customer.phone}<br>` : ""}
+                ${customer.email ? `Email: ${customer.email}<br>` : ""}
               </p>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
 
           <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #666;">
             Thank you for your business!
@@ -355,7 +361,9 @@ const Invoices = () => {
               <option value="">All status</option>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                  {s
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (l) => l.toUpperCase())}
                 </option>
               ))}
             </select>
@@ -493,8 +501,7 @@ const Invoices = () => {
           />
 
           <small className="text-muted d-block mt-2">
-            Invoices are stored in SQLite and will later drive reports and sync
-            to xnoll.com.
+            Invoices are stored in local.
           </small>
         </div>
       </div>
@@ -544,7 +551,12 @@ const Invoices = () => {
                             setShowCustomerDropdown(true);
                           }}
                           onFocus={() => setShowCustomerDropdown(true)}
-                          onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                          onBlur={() =>
+                            setTimeout(
+                              () => setShowCustomerDropdown(false),
+                              150
+                            )
+                          }
                           disabled={loading || !customers.length}
                         />
                         {showCustomerDropdown &&
@@ -637,7 +649,9 @@ const Invoices = () => {
                       >
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
-                            {s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                            {s
+                              .replace(/_/g, " ")
+                              .replace(/\b\w/g, (l) => l.toUpperCase())}
                           </option>
                         ))}
                       </select>

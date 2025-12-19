@@ -4,10 +4,10 @@
   "author": "Xnoll Team",
   "features": {
     "offlineMode": true,
-    "syncEnabled": true,
+    "syncEnabled": false,
     "licenseRequired": true,
-    "autoBackup": true,
-    "reminders": true
+    "autoBackup": false,
+    "reminders": false
   },
   "defaultSettings": {
     "theme": "light",

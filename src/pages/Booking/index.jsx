@@ -285,7 +285,7 @@ const BookingPage = () => {
           await window.xnoll.customFieldValuesSave({
             field_id: field.id,
             record_id: recordId,
-            value: customFieldValues[field.name] || field.default_value || ''
+            value: customFieldValues[field.name] ?? field.default_value ?? ''
           });
         }
       }
@@ -321,7 +321,7 @@ const BookingPage = () => {
         const values = {};
         for (const field of customFields) {
           const res = await window.xnoll.customFieldValuesGet(field.id, b.id);
-          if (res?.success && res.value !== undefined) {
+          if (res && res.value !== undefined && res.value !== null) {
             values[field.name] = res.value;
           }
         }

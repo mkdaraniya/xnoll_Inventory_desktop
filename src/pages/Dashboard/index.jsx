@@ -113,8 +113,7 @@ const Dashboard = () => {
         <div className="card-body d-flex justify-content-between align-items-center">
           <div>
             <p className="mb-0 text-muted small">
-              Quick overview of your local data. All numbers are from SQLite and
-              can sync to xnoll.com later.
+              Quick overview of your local data.
             </p>
           </div>
           <button
