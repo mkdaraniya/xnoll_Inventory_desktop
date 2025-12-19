@@ -28,7 +28,7 @@ const Customers = () => {
     try {
       const [rows, fields] = await Promise.all([
         window.xnoll.customersList(),
-        window.xnoll.customFieldsList('customers')
+        window.xnoll.customFieldsList("customers"),
       ]);
       setCustomers(rows || []);
       setCustomFields(fields || []);
@@ -42,27 +42,100 @@ const Customers = () => {
   }, []);
 
   // ----- Filters, sorting, pagination -----
+  const getSortValue = (row, sortKey) => {
+    if (!sortKey) return "";
+
+    // 1️⃣ root column
+    if (row[sortKey] !== undefined && row[sortKey] !== null) {
+      return row[sortKey];
+    }
+
+    // 2️⃣ custom field
+    if (row.custom_fields && row.custom_fields[sortKey] !== undefined) {
+      return row.custom_fields[sortKey];
+    }
+
+    return "";
+  };
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     let data = [...customers];
+
+    // 1) Filter by term if present
     if (term) {
       data = data.filter((c) => {
-        return (
+        // base fields
+        const baseMatch =
           (c.name || "").toLowerCase().includes(term) ||
           (c.phone || "").toLowerCase().includes(term) ||
-          (c.email || "").toLowerCase().includes(term)
-        );
+          (c.email || "").toLowerCase().includes(term);
+
+        if (baseMatch) return true;
+
+        // searchable custom fields
+        if (c.custom_fields && Array.isArray(customFields)) {
+          for (const field of customFields) {
+            if (!field.searchable) continue;
+            const value = c.custom_fields[field.name];
+            if (
+              value !== undefined &&
+              String(value).toLowerCase().includes(term)
+            ) {
+              return true;
+            }
+          }
+        }
+
+        return false;
       });
     }
+
+    // 2) Sorting — always apply sorting even when no search term
+    const getSortValue = (row, key) => {
+      if (!key) return "";
+
+      // root property
+      if (row[key] !== undefined && row[key] !== null) return row[key];
+
+      // custom field fallback
+      if (row.custom_fields && row.custom_fields[key] !== undefined) {
+        return row.custom_fields[key];
+      }
+
+      return "";
+    };
+
     data.sort((a, b) => {
-      const va = a[sortKey] ?? "";
-      const vb = b[sortKey] ?? "";
+      let va = getSortValue(a, sortKey);
+      let vb = getSortValue(b, sortKey);
+
+      // Try numeric compare when both are numeric-like
+      const na = parseFloat(va);
+      const nb = parseFloat(vb);
+      const bothNumbers =
+        String(va).trim() !== "" &&
+        String(vb).trim() !== "" &&
+        !Number.isNaN(na) &&
+        !Number.isNaN(nb);
+
+      if (bothNumbers) {
+        if (na < nb) return sortDir === "asc" ? -1 : 1;
+        if (na > nb) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      // String compare (case-insensitive)
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
+
     return data;
-  }, [customers, search, sortKey, sortDir]);
+  }, [customers, customFields, search, sortKey, sortDir]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -116,13 +189,12 @@ const Customers = () => {
       // Save custom field values
       if (customFields.length > 0 && customerId) {
         for (const field of customFields) {
-          const value = customFieldValues[field.id];
-          console.log('my value ::', value, ' id : ', id);
-          if (value !== undefined && value !== '') {
+          const value = customFieldValues[field.name];
+          if (value !== undefined && value !== "") {
             await window.xnoll.customFieldValuesSave({
               field_id: field.id,
               record_id: customerId,
-              value: String(value)
+              value: String(value),
             });
           }
         }
@@ -152,14 +224,17 @@ const Customers = () => {
       try {
         const values = {};
         for (const field of customFields) {
-          const result = await window.xnoll.customFieldValuesGet(field.id, customer.id);
+          const result = await window.xnoll.customFieldValuesGet(
+            field.id,
+            customer.id
+          );
           if (result && result.value !== undefined) {
             values[field.name] = result.value;
           }
         }
         setCustomFieldValues(values);
       } catch (err) {
-        console.error('Failed to load custom field values:', err);
+        console.error("Failed to load custom field values:", err);
       }
     }
 
@@ -269,8 +344,15 @@ const Customers = () => {
                   >
                     Email {sortIcon("email")}
                   </th>
-                  {(Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).map(f => (
-                    <th key={f.id} style={{ cursor: f.sortable ? 'pointer' : 'default' }} onClick={() => f.sortable && handleSort(f.name)}>
+                  {(Array.isArray(customFields)
+                    ? customFields.filter((f) => f.display_in_grid)
+                    : []
+                  ).map((f) => (
+                    <th
+                      key={f.id}
+                      style={{ cursor: f.sortable ? "pointer" : "default" }}
+                      onClick={() => f.sortable && handleSort(f.name)}
+                    >
                       {f.label} {f.sortable && sortIcon(f.name)}
                     </th>
                   ))}
@@ -286,9 +368,12 @@ const Customers = () => {
                     <td>{c.name}</td>
                     <td>{c.phone}</td>
                     <td>{c.email}</td>
-                    {(Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).map(f => (
+                    {(Array.isArray(customFields)
+                      ? customFields.filter((f) => f.display_in_grid)
+                      : []
+                    ).map((f) => (
                       <td key={f.id}>
-                        {c.custom_fields?.[f.name] || f.default_value || '-'}
+                        {c.custom_fields?.[f.name] ?? f.default_value ?? "-"}
                       </td>
                     ))}
                     <td className="text-end">
@@ -311,7 +396,16 @@ const Customers = () => {
                 ))}
                 {!pageData.length && !loading && (
                   <tr>
-                    <td colSpan={5 + (Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).length} className="text-center text-muted">
+                    <td
+                      colSpan={
+                        5 +
+                        (Array.isArray(customFields)
+                          ? customFields.filter((f) => f.display_in_grid)
+                          : []
+                        ).length
+                      }
+                      className="text-center text-muted"
+                    >
                       No customers found.
                     </td>
                   </tr>
@@ -407,7 +501,12 @@ const Customers = () => {
                         <CustomFieldRenderer
                           fields={customFields}
                           values={customFieldValues}
-                          onChange={setCustomFieldValues}
+                          onChange={(name, value) =>
+                            setCustomFieldValues((prev) => ({
+                              ...prev,
+                              [name]: value,
+                            }))
+                          }
                           module="customers"
                           loading={loading}
                         />

@@ -1,100 +1,109 @@
-import React, { useState, useEffect } from 'react';
-import Button from '../common/Button';
+import React from 'react';
 
 const CustomFieldRenderer = ({
   fields = [],
-  values = {},
-  onChange,
-  module,
+  values = {},         // controlled values object keyed by field.name
+  onChange,            // function (fieldName, value)
   loading = false
 }) => {
-  const [fieldValues, setFieldValues] = useState(values);
 
-  // Helper function to parse options from both comma and newline separated formats
-  const parseOptions = (optionsString) => {
-    if (!optionsString) return [];
-
-    // Check if it contains commas and no newlines, or newlines and no commas
-    if (optionsString.includes(',') && !optionsString.includes('\n')) {
-      return optionsString.split(',').map(opt => opt.trim()).filter(opt => opt);
-    } else if (optionsString.includes('\n')) {
-      return optionsString.split('\n').map(opt => opt.trim()).filter(opt => opt);
-    } else {
-      // Single option or already split
-      return [optionsString.trim()].filter(opt => opt);
-    }
+  // parse comma or newline separated options
+  const parseOptions = (optionsString = '') => {
+    return optionsString
+      .split(/[\n,]/)
+      .map(opt => opt.trim())
+      .filter(Boolean);
   };
 
-useEffect(() => {
-    setFieldValues(values);
-}, [values]);
-
-
-const handleFieldChange = (fieldName, value) => {
-    const newValues = { ...fieldValues, [fieldName]: value };
-    setFieldValues(newValues);
-    if (onChange) {
+  // Handler invoked from inputs
+  const handleFieldChange = (fieldName, value) => {
+    if (typeof onChange === 'function') {
       onChange(fieldName, value);
     }
   };
 
-  const renderField = (field) => {
-    const value = fieldValues[field.name] || field.default_value || '';
-    const baseFieldProps = {
-      disabled: loading,
-      required: field.required === 1
-    };
-
-    switch (field.type) {
-      case 'text':
-        return <input type="text" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'number':
-        return <input type="number" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'date':
-        return <input type="date" className="form-control" {...baseFieldProps} value={value} onChange={(e) => handleFieldChange(field.name, e.target.value)} />;
-
-      case 'select':
-        const selectOptions = field.options ? parseOptions(field.options) : [];
-        return (
-          <select
-            className="form-select form-select-sm"
-            {...baseFieldProps}
-            value={value}
-            onChange={(e) => handleFieldChange(field.name, e.target.value)}
-            style={{ minHeight: '38px' }}
-          >
-            <option value="">Select {field.label.toLowerCase()}</option>
-            {selectOptions.map((option, index) => (
-              <option key={index} value={option.trim()}>
-                {option.trim()}
-              </option>
-            ))}
-          </select>
-        );
-
-      default:
-        return <input type="text" {...baseFieldProps} />;
-    }
+  // read value from the controlled prop; only use default if undefined
+  const getValue = (field) => {
+    return values[field.name] !== undefined ? values[field.name] : (field.default_value ?? '');
   };
 
-  if (!fields || fields.length === 0) {
-    return null;
-  }
+  if (!fields || fields.length === 0) return null;
 
   return (
     <div className="custom-fields-section">
       <h6 className="mb-3 text-muted small">Additional Information</h6>
       <div className="row g-3">
         {fields.map(field => (
-          <div key={field.id} className="col-md-12 mb-3">
-            <label className="form-label fw-semibold">
+          <div key={field.id} className="col-md-12">
+            <label className="form-label">
               {field.label} {field.required === 1 && <span className="text-danger ms-1">*</span>}
             </label>
-            {renderField(field)}
+
+            {field.type === 'text' && (
+              <input
+                type="text"
+                className="form-control"
+                disabled={loading}
+                required={field.required === 1}
+                value={String(getValue(field))}
+                onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              />
+            )}
+
+            {field.type === 'number' && (
+              <input
+                type="number"
+                className="form-control"
+                disabled={loading}
+                required={field.required === 1}
+                value={getValue(field) !== '' ? getValue(field) : ''}
+                onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              />
+            )}
+
+            {field.type === 'date' && (
+              <input
+                type="date"
+                className="form-control"
+                disabled={loading}
+                required={field.required === 1}
+                value={String(getValue(field))}
+                onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              />
+            )}
+
+            {field.type === 'select' && (
+              <select
+                className="form-select form-select-sm"
+                disabled={loading}
+                required={field.required === 1}
+                value={String(getValue(field) ?? '')}
+                onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                style={{ minHeight: '38px' }}
+              >
+                <option value="">Select {field.label.toLowerCase()}</option>
+                {parseOptions(field.options).map((option, idx) => (
+                  <option key={idx} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {field.type === 'file' && (
               <small className="text-muted">File upload not yet implemented</small>
+            )}
+
+            {/* fallback for unknown types */}
+            {!['text','number','date','select','file'].includes(field.type) && (
+              <input
+                type="text"
+                className="form-control"
+                disabled={loading}
+                required={field.required === 1}
+                value={String(getValue(field))}
+                onChange={(e) => handleFieldChange(field.name, e.target.value)}
+              />
             )}
           </div>
         ))}

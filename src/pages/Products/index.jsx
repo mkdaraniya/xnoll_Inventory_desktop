@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
 import Pagination from "../../components/common/Pagination";
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency } from "../../utils/format";
 
 const emptyForm = { id: null, sku: "", name: "", unit: "", price: "" };
 const PAGE_SIZE = 10;
@@ -10,11 +10,14 @@ const Products = () => {
   const [products, setProducts] = useState([]);
   const [customFields, setCustomFields] = useState([]);
   const [customFieldValues, setCustomFieldValues] = useState({});
-  const [currency, setCurrency] = useState('INR');
+  const [currency, setCurrency] = useState("INR");
   const [form, setForm] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState({ auto_generate_sku: 1, sku_prefix: 'SKU' });
+  const [settings, setSettings] = useState({
+    auto_generate_sku: 1,
+    sku_prefix: "SKU",
+  });
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -31,15 +34,15 @@ const Products = () => {
       // temporary: direct select; later replace by window.xnoll.productsList()
       const [rows, fields, settingsRes] = await Promise.all([
         window.xnoll.productsList(),
-        window.xnoll.customFieldsList('products'),
-        window.xnoll.settingsGet()
+        window.xnoll.customFieldsList("products"),
+        window.xnoll.settingsGet(),
       ]);
 
       setProducts(rows || []);
       setCustomFields(fields || []);
       if (settingsRes?.success && settingsRes.settings) {
         setSettings((prev) => ({ ...prev, ...settingsRes.settings }));
-        setCurrency(settingsRes.settings.currency || 'INR');
+        setCurrency(settingsRes.settings.currency || "INR");
       }
     } finally {
       setLoading(false);
@@ -54,23 +57,71 @@ const Products = () => {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     let data = [...products];
+
+    // 1) Filter by term if present
     if (term) {
       data = data.filter((p) => {
-        return (
+        const baseMatch =
           (p.name || "").toLowerCase().includes(term) ||
-          (p.sku || "").toLowerCase().includes(term)
-        );
+          (p.sku || "").toLowerCase().includes(term);
+
+        if (baseMatch) return true;
+
+        if (p.custom_fields && Array.isArray(customFields)) {
+          for (const field of customFields) {
+            if (!field.searchable) continue;
+            const value = p.custom_fields[field.name];
+            if (
+              value !== undefined &&
+              String(value).toLowerCase().includes(term)
+            ) {
+              return true;
+            }
+          }
+        }
+
+        return false;
       });
     }
+
+    // 2) Sorting — always apply
+    const getSortValue = (row, key) => {
+      if (!key) return "";
+      if (row[key] !== undefined && row[key] !== null) return row[key];
+      if (row.custom_fields && row.custom_fields[key] !== undefined)
+        return row.custom_fields[key];
+      return "";
+    };
+
     data.sort((a, b) => {
-      const va = a[sortKey] ?? "";
-      const vb = b[sortKey] ?? "";
+      let va = getSortValue(a, sortKey);
+      let vb = getSortValue(b, sortKey);
+
+      // numeric compare when both look numeric
+      const na = parseFloat(va);
+      const nb = parseFloat(vb);
+      const bothNumbers =
+        String(va).trim() !== "" &&
+        String(vb).trim() !== "" &&
+        !Number.isNaN(na) &&
+        !Number.isNaN(nb);
+
+      if (bothNumbers) {
+        if (na < nb) return sortDir === "asc" ? -1 : 1;
+        if (na > nb) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
+
     return data;
-  }, [products, search, sortKey, sortDir]);
+  }, [products, customFields, search, sortKey, sortDir]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -113,7 +164,7 @@ const Products = () => {
     // Auto-generate SKU if enabled
     if (settings.auto_generate_sku && window.xnoll) {
       window.xnoll
-        .skuGenerate(settings.sku_prefix || 'SKU')
+        .skuGenerate(settings.sku_prefix || "SKU")
         .then((resp) => {
           if (resp?.sku) {
             setForm((prev) => ({ ...prev, sku: resp.sku }));
@@ -126,11 +177,11 @@ const Products = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    if (name === 'name' && settings.auto_generate_sku && !form.sku) {
+    if (name === "name" && settings.auto_generate_sku && !form.sku) {
       const trimmed = value.trim();
       if (trimmed.length >= 2 && window.xnoll) {
         window.xnoll
-          .skuGenerate(settings.sku_prefix || 'SKU')
+          .skuGenerate(settings.sku_prefix || "SKU")
           .then((resp) => {
             if (resp?.sku) setForm((prev) => ({ ...prev, sku: resp.sku }));
           })
@@ -167,12 +218,12 @@ const Products = () => {
       // Save custom field values
       if (customFields.length > 0 && productId) {
         for (const field of customFields) {
-          const value = customFieldValues[field.id];
-          if (value !== undefined && value !== '') {
+          const value = customFieldValues[field.name];
+          if (value !== undefined && value !== "") {
             await window.xnoll.customFieldValuesSave({
               field_id: field.id,
               record_id: productId,
-              value: String(value)
+              value: String(value),
             });
           }
         }
@@ -202,14 +253,17 @@ const Products = () => {
       try {
         const values = {};
         for (const field of customFields) {
-          const result = await window.xnoll.customFieldValuesGet(field.id, p.id);
+          const result = await window.xnoll.customFieldValuesGet(
+            field.id,
+            p.id
+          );
           if (result && result.value !== undefined) {
             values[field.name] = result.value;
           }
         }
         setCustomFieldValues(values);
       } catch (err) {
-        console.error('Failed to load custom field values:', err);
+        console.error("Failed to load custom field values:", err);
       }
     }
 
@@ -300,8 +354,15 @@ const Products = () => {
                   >
                     Price {sortIcon("price")}
                   </th>
-                  {(Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).map(f => (
-                    <th key={f.id} style={{ cursor: f.sortable ? 'pointer' : 'default' }} onClick={() => f.sortable && handleSort(f.name)}>
+                  {(Array.isArray(customFields)
+                    ? customFields.filter((f) => f.display_in_grid)
+                    : []
+                  ).map((f) => (
+                    <th
+                      key={f.id}
+                      style={{ cursor: f.sortable ? "pointer" : "default" }}
+                      onClick={() => f.sortable && handleSort(f.name)}
+                    >
                       {f.label} {f.sortable && sortIcon(f.name)}
                     </th>
                   ))}
@@ -318,9 +379,12 @@ const Products = () => {
                     <td>{p.name}</td>
                     <td>{p.unit}</td>
                     <td>{formatCurrency(p.price, currency)}</td>
-                    {(Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).map(f => (
+                    {(Array.isArray(customFields)
+                      ? customFields.filter((f) => f.display_in_grid)
+                      : []
+                    ).map((f) => (
                       <td key={f.id}>
-                        {p.custom_fields?.[f.name] || f.default_value || '-'}
+                        {p.custom_fields?.[f.name] ?? f.default_value ?? "-"}
                       </td>
                     ))}
                     <td className="text-end">
@@ -343,7 +407,16 @@ const Products = () => {
                 ))}
                 {!pageData.length && !loading && (
                   <tr>
-                    <td colSpan={6 + (Array.isArray(customFields) ? customFields.filter(f => f.display_in_grid) : []).length} className="text-center text-muted">
+                    <td
+                      colSpan={
+                        6 +
+                        (Array.isArray(customFields)
+                          ? customFields.filter((f) => f.display_in_grid)
+                          : []
+                        ).length
+                      }
+                      className="text-center text-muted"
+                    >
                       No products found.
                     </td>
                   </tr>
@@ -455,7 +528,12 @@ const Products = () => {
                         <CustomFieldRenderer
                           fields={customFields}
                           values={customFieldValues}
-                          onChange={setCustomFieldValues}
+                          onChange={(name, value) =>
+                            setCustomFieldValues((prev) => ({
+                              ...prev,
+                              [name]: value,
+                            }))
+                          }
                           module="products"
                           loading={loading}
                         />
