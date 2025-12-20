@@ -335,16 +335,19 @@ function getInvoicesWithItems() {
   const invoices = statements.getAllInvoices.all();
   const products = statements.getAllProducts.all();
   const productMap = {};
-  products.forEach(p => productMap[p.id] = p);
+  products.forEach((p) => (productMap[p.id] = p));
 
   for (const invoice of invoices) {
     invoice.items = statements.getInvoiceItems.all(invoice.id);
 
     // Enrich items with product name if available
     if (Array.isArray(invoice.items)) {
-      invoice.items = invoice.items.map(item => ({
+      invoice.items = invoice.items.map((item) => ({
         ...item,
-        product_name: productMap[item.product_id]?.name || item.description || "Unknown Item"
+        product_name:
+          productMap[item.product_id]?.name ||
+          item.description ||
+          "Unknown Item",
       }));
     } else {
       invoice.items = [];
@@ -573,6 +576,8 @@ module.exports = {
   updateBookingWithItems,
   deleteBookingWithItems,
   createInvoiceWithItems,
+  getInvoicesWithItems,
+
   // Bookings
   insertBooking: (data) => {
     const info = statements.insertBooking.run(

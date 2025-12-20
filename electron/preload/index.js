@@ -42,8 +42,8 @@ contextBridge.exposeInMainWorld("xnoll", {
   // Invoices API
   invoicesList: () => ipcRenderer.invoke("invoices:list"),
   invoicesCreate: (payload) => ipcRenderer.invoke("invoices:create", payload),
-  invoicesUpdate: (payload) => ipcRenderer.invoke("invoices:update", payload),
   invoicesDelete: (id) => ipcRenderer.invoke("invoices:delete", id),
+  invoicesGetById: (id) => ipcRenderer.invoke("invoices:getById", id),
 
   // License API
   licenseGetMachineId: () => ipcRenderer.invoke("license:getMachineId"),

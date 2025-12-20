@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
+import { toast } from "react-toastify";
 
 const STATUS_OPTIONS = ["pending", "confirmed", "completed", "cancelled"];
 const PAGE_SIZE = 10;
@@ -20,6 +21,7 @@ const BookingPage = () => {
   const [customFields, setCustomFields] = useState([]);
   const [customFieldValues, setCustomFieldValues] = useState({});
   const [loading, setLoading] = useState(false);
+  const [invoiceDiscount, setInvoiceDiscount] = useState(0);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -240,6 +242,22 @@ const BookingPage = () => {
 
     return data;
   }, [enrichedBookings, customFields, search, statusFilter, sortKey, sortDir]);
+
+  const totalAmount = useMemo(() => {
+    if (!selectedBooking || !Array.isArray(selectedBooking.items)) return 0;
+
+    return selectedBooking.items.reduce(
+      (sum, i) =>
+        sum +
+        Number(i.line_total ?? Number(i.qty || 1) * Number(i.unit_price || 0)),
+      0
+    );
+  }, [selectedBooking]);
+
+  const payableAmount = useMemo(() => {
+    const d = Number(invoiceDiscount || 0);
+    return Math.max(0, totalAmount - d);
+  }, [totalAmount, invoiceDiscount]);
 
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -485,80 +503,64 @@ const BookingPage = () => {
 
   const handleGenerateInvoice = (booking) => {
     setSelectedBooking(booking);
+    setInvoiceDiscount(0);
     setShowInvoiceModal(true);
   };
 
-  const handleCreateInvoice = async () => {
-    if (!window.xnoll || !selectedBooking) return;
+  async function handleCreateInvoice() {
+    if (!selectedBooking) return;
 
-    const amount = selectedBooking.items?.reduce(
-      (sum, i) =>
-        sum +
-        Number(i.line_total || Number(i.unit_price || 0) * Number(i.qty || 1)),
-      0
-    );
-    const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
-
-    if (!selectedBooking.customer_id) {
-      alert("Booking has no customer selected.");
-      return;
-    }
-
-    const existingInvoices = invoiceMap[selectedBooking.customer_id] || [];
-    const existing = existingInvoices.find(
-      (inv) => inv.booking_id === selectedBooking.id
-    );
-    if (existing) {
-      alert(`Invoice already generated today (ID: ${existing.id}).`);
-      setShowInvoiceModal(false);
-      await loadAll();
-      return;
-    }
-
-    setLoading(true);
     try {
-      // Build invoice payload including items
-      const invoicePayload = {
+      const payload = {
         invoice: {
-          invoice_number: null, // will be generated or left null
-          customer_id: selectedBooking.customer_id,
           booking_id: selectedBooking.id,
-          total: amount,
-          discount: 0,
-          invoice_date: today,
-          due_date: null,
+          customer_id: selectedBooking.customer_id,
+          invoice_date: new Date().toISOString().slice(0, 10),
+          due_date: new Date().toISOString().slice(0, 10),
+          total: payableAmount, // ✅ AFTER discount
+          discount: invoiceDiscount, // ✅ stored
           status: "unpaid",
-          notes: "",
         },
-        items: (selectedBooking.items || []).map((it) => ({
-          product_id: it.product_id || null,
-          description: productMap[it.product_id]?.name || "",
-          qty: Number(it.qty || 1),
-          unit_price: Number(it.unit_price || 0),
-          line_total: Number(
-            it.line_total || Number(it.unit_price || 0) * Number(it.qty || 1)
-          ),
+        items: selectedBooking.items.map((i) => ({
+          product_id: i.product_id,
+          description: i.description || "",
+          qty: Number(i.qty || 1),
+          unit_price: Number(i.unit_price || 0),
+          line_total:
+            Number(i.line_total) ??
+            Number(i.qty || 1) * Number(i.unit_price || 0),
         })),
       };
 
-      const newInvoice = await window.xnoll.invoicesCreate(invoicePayload);
-      // mark booking completed
-      await window.xnoll.bookingsUpdate({
-        id: selectedBooking.id,
-        booking_date: selectedBooking.booking_date,
-        status: "completed",
-      });
-      await loadAll();
-      alert("Invoice created and booking marked as completed.");
+      // 1️⃣ Create invoice (main action)
+      const invoiceRes = await window.xnoll.invoicesCreate(payload);
+
+      if (!invoiceRes) {
+        throw new Error("Invoice creation failed");
+      }
+
+      toast.success("Invoice created");
+
+      // 2️⃣ Update booking (secondary, non-blocking)
+      try {
+        await window.xnoll.bookingsUpdate("bookings:update", {
+          id: selectedBooking.id,
+          status: "invoiced",
+          items: selectedBooking.items, // required by backend validator
+        });
+      } catch (e) {
+        console.warn("Booking update failed:", e);
+        toast.warning("Invoice created but booking update failed");
+      }
+
       setShowInvoiceModal(false);
-    } catch (err) {
-      console.error("Error generating invoice:", err);
-      alert("Failed to generate invoice. See console for details.");
+      setSelectedBooking(null);
       await loadAll();
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate invoice");
     }
-  };
+  }
 
   const closeModal = () => {
     setShowModal(false);
@@ -1065,11 +1067,27 @@ const BookingPage = () => {
                   </p>
 
                   <p>
-                    <strong>Amount:</strong> ₹
-                    {selectedBooking.items
-                      ?.reduce((sum, i) => sum + Number(i.line_total || 0), 0)
-                      .toFixed(2)}
+                    <strong>Sub Total:</strong> ₹{totalAmount.toFixed(2)}
                   </p>
+
+                  <div className="mb-2">
+                    <label className="form-label small">Discount</label>
+                    <input
+                      type="number"
+                      className="form-control form-control-sm"
+                      min="0"
+                      max={totalAmount}
+                      value={invoiceDiscount}
+                      onChange={(e) =>
+                        setInvoiceDiscount(Number(e.target.value || 0))
+                      }
+                    />
+                  </div>
+
+                  <p>
+                    <strong>Payable:</strong> ₹{payableAmount.toFixed(2)}
+                  </p>
+
                   <p className="small text-muted">
                     This will mark the booking as completed.
                   </p>

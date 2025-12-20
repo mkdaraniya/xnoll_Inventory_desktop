@@ -1,17 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Pagination from "../../components/common/Pagination";
 import { formatCurrency } from "../../utils/format";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const STATUS_OPTIONS = ["unpaid", "partially_paid", "paid", "cancelled"];
 const PAGE_SIZE = 10;
-
-const emptyForm = {
-  id: null,
-  customer_id: "",
-  total: "",
-  invoice_date: "",
-  status: "unpaid",
-};
 
 const Invoices = () => {
   const [invoices, setInvoices] = useState([]);
@@ -26,13 +20,64 @@ const Invoices = () => {
   const [sortDir, setSortDir] = useState("desc");
 
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [isEditing, setIsEditing] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [currency, setCurrency] = useState("INR");
+  const [viewInvoice, setViewInvoice] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const invoiceRef = useRef(null);
+  const viewInvoiceRef = useRef(null);
+
+  const [company, setCompany] = useState({
+    name: "Xnoll Booking",
+    tax_id: "",
+    phone: "",
+    email: "",
+    website: "",
+    address: "",
+  });
 
   const customerInputRef = useRef(null);
+
+  const handleDownloadPDF = async () => {
+    console.log(
+      "handle download pdf clicked",
+      viewInvoiceRef.current,
+      viewInvoice
+    );
+    if (!viewInvoiceRef.current || !viewInvoice) return;
+    console.log("Downloading PDF for invoice:", viewInvoice.id);
+
+    const element = viewInvoiceRef.current;
+
+    try {
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = 210;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      const pageHeight = 297;
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`Invoice_${viewInvoice.id}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("Failed to generate PDF");
+    }
+  };
 
   const loadInvoices = async () => {
     if (!window.xnoll) return;
@@ -55,6 +100,21 @@ const Invoices = () => {
 
   useEffect(() => {
     loadInvoices();
+  }, []);
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      if (!window.xnoll) return;
+      try {
+        const res = await window.xnoll.companyGet();
+        if (res.success && res.company) {
+          setCompany(res.company);
+        }
+      } catch (err) {
+        console.error("Failed to load company:", err);
+      }
+    };
+    loadCompany();
   }, []);
 
   const filteredCustomers = useMemo(() => {
@@ -139,6 +199,18 @@ const Invoices = () => {
       year: "numeric",
     });
   };
+  const handleView = async (invoice) => {
+    if (!window.xnoll) return;
+
+    try {
+      const full = await window.xnoll.invoicesGetById(invoice.id);
+      setViewInvoice(full);
+      setShowViewModal(true);
+    } catch (err) {
+      console.error("Failed to load invoice", err);
+      alert("Failed to load invoice");
+    }
+  };
 
   const getStatusBadge = (status) => {
     const s = status || "unpaid";
@@ -170,12 +242,6 @@ const Invoices = () => {
     setPage(p);
   };
 
-  // -------- form / modal ----------
-  const resetForm = () => {
-    setForm(emptyForm);
-    setIsEditing(false);
-  };
-
   const openNewModal = () => {
     resetForm();
     setCustomerSearch("");
@@ -192,54 +258,6 @@ const Invoices = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!window.xnoll) return;
-
-    const payload = {
-      id: form.id,
-      customer_id: Number(form.customer_id) || null,
-      total: parseFloat(form.total || "0") || 0,
-      invoice_date: form.invoice_date.trim(),
-      status: form.status || "unpaid",
-    };
-
-    if (!payload.customer_id || !payload.invoice_date) {
-      alert("Please fill all required fields.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (isEditing && payload.id != null) {
-        await window.xnoll.invoicesUpdate(payload);
-      } else {
-        await window.xnoll.invoicesCreate(payload);
-      }
-      resetForm();
-      setShowModal(false);
-      await loadInvoices();
-    } catch (err) {
-      console.error("Error saving invoice:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = (inv) => {
-    setForm({
-      id: inv.id,
-      customer_id: inv.customer_id || "",
-      total: inv.total != null ? String(inv.total) : "",
-      invoice_date: inv.invoice_date || "",
-      status: inv.status || "unpaid",
-    });
-    const cust = customerMap[inv.customer_id];
-    setCustomerSearch(cust ? `${cust.name} (ID: ${inv.customer_id})` : "");
-    setIsEditing(true);
-    setShowModal(true);
   };
 
   const handleDelete = async (id) => {
@@ -378,14 +396,6 @@ const Invoices = () => {
                 setPage(1);
               }}
             />
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={openNewModal}
-              disabled={loading || !customers.length}
-              title={!customers.length ? "Add customers first" : ""}
-            >
-              + New Invoice
-            </button>
           </div>
         </div>
       </div>
@@ -452,19 +462,12 @@ const Invoices = () => {
                     <td className="text-end">
                       <div className="d-flex justify-content-end gap-1 flex-wrap">
                         <button
-                          className="btn btn-sm btn-outline-info"
-                          disabled={loading}
-                          onClick={() => handlePrint(inv)}
-                          title="Print Invoice"
-                        >
-                          🖨️
-                        </button>
-                        <button
                           className="btn btn-sm btn-outline-primary"
                           disabled={loading}
-                          onClick={() => handleEdit(inv)}
+                          onClick={() => handleView(inv)}
+                          title="View Invoice"
                         >
-                          Edit
+                          View
                         </button>
                         <button
                           className="btn btn-sm btn-outline-danger"
@@ -506,7 +509,6 @@ const Invoices = () => {
         </div>
       </div>
 
-      {/* Modal for add/edit invoice */}
       {showModal && (
         <>
           <div
@@ -522,159 +524,149 @@ const Invoices = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-content">
-                <form onSubmit={handleSubmit}>
-                  <div className="modal-header">
-                    <h5 className="modal-title">
-                      {isEditing ? "Edit Invoice" : "New Invoice"}
-                    </h5>
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={closeModal}
+                <div className="modal-header">
+                  <h5 className="modal-title">{"New Invoice"}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={closeModal}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="modal-body" ref={viewInvoiceRef}>
+                  <div className="mb-2">
+                    <label className="form-label mb-0 small">Customer *</label>
+                    <div className="position-relative mb-1">
+                      <input
+                        ref={customerInputRef}
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="Search by name / phone / ID"
+                        value={customerSearch}
+                        onChange={(e) => {
+                          setCustomerSearch(e.target.value);
+                          setShowCustomerDropdown(true);
+                        }}
+                        onFocus={() => setShowCustomerDropdown(true)}
+                        onBlur={() =>
+                          setTimeout(() => setShowCustomerDropdown(false), 150)
+                        }
+                        disabled={loading || !customers.length}
+                      />
+                      {showCustomerDropdown && filteredCustomers.length > 0 && (
+                        <div
+                          className="position-absolute top-100 start-0 w-100 bg-white border shadow-sm"
+                          style={{
+                            zIndex: 10,
+                            maxHeight: "150px",
+                            overflowY: "auto",
+                          }}
+                        >
+                          {filteredCustomers.slice(0, 10).map((c) => (
+                            <div
+                              key={c.id}
+                              className="p-2 border-bottom small"
+                              style={{ cursor: "pointer" }}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setForm((prev) => ({
+                                  ...prev,
+                                  customer_id: c.id,
+                                }));
+                                setCustomerSearch(
+                                  `${c.name}${
+                                    c.phone ? ` - ${c.phone}` : ""
+                                  } (ID: ${c.id})`
+                                );
+                                setShowCustomerDropdown(false);
+                              }}
+                            >
+                              <div className="fw-bold">{c.name}</div>
+                              <small className="text-muted">
+                                {c.phone || "No phone"} • ID: {c.id}
+                              </small>
+                            </div>
+                          ))}
+                          {filteredCustomers.length > 10 && (
+                            <div className="p-2 small text-muted">
+                              ... and {filteredCustomers.length - 10} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <small className="text-muted">
+                      {form.customer_id
+                        ? `Selected: ${customerMap[form.customer_id]?.name || "Unknown"}`
+                        : "No customer selected"}
+                    </small>
+                  </div>
+                  <div className="mb-2">
+                    <label className="form-label mb-0 small">
+                      Invoice Date *
+                    </label>
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      name="invoice_date"
+                      value={form.invoice_date}
+                      onChange={handleChange}
+                      required
                       disabled={loading}
                     />
                   </div>
-                  <div className="modal-body">
-                    <div className="mb-2">
-                      <label className="form-label mb-0 small">
-                        Customer *
-                      </label>
-                      <div className="position-relative mb-1">
-                        <input
-                          ref={customerInputRef}
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Search by name / phone / ID"
-                          value={customerSearch}
-                          onChange={(e) => {
-                            setCustomerSearch(e.target.value);
-                            setShowCustomerDropdown(true);
-                          }}
-                          onFocus={() => setShowCustomerDropdown(true)}
-                          onBlur={() =>
-                            setTimeout(
-                              () => setShowCustomerDropdown(false),
-                              150
-                            )
-                          }
-                          disabled={loading || !customers.length}
-                        />
-                        {showCustomerDropdown &&
-                          filteredCustomers.length > 0 && (
-                            <div
-                              className="position-absolute top-100 start-0 w-100 bg-white border shadow-sm"
-                              style={{
-                                zIndex: 10,
-                                maxHeight: "150px",
-                                overflowY: "auto",
-                              }}
-                            >
-                              {filteredCustomers.slice(0, 10).map((c) => (
-                                <div
-                                  key={c.id}
-                                  className="p-2 border-bottom small"
-                                  style={{ cursor: "pointer" }}
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => {
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      customer_id: c.id,
-                                    }));
-                                    setCustomerSearch(
-                                      `${c.name}${
-                                        c.phone ? ` - ${c.phone}` : ""
-                                      } (ID: ${c.id})`
-                                    );
-                                    setShowCustomerDropdown(false);
-                                  }}
-                                >
-                                  <div className="fw-bold">{c.name}</div>
-                                  <small className="text-muted">
-                                    {c.phone || "No phone"} • ID: {c.id}
-                                  </small>
-                                </div>
-                              ))}
-                              {filteredCustomers.length > 10 && (
-                                <div className="p-2 small text-muted">
-                                  ... and {filteredCustomers.length - 10} more
-                                </div>
-                              )}
-                            </div>
-                          )}
-                      </div>
-                      <small className="text-muted">
-                        {form.customer_id
-                          ? `Selected: ${customerMap[form.customer_id]?.name || "Unknown"}`
-                          : "No customer selected"}
-                      </small>
-                    </div>
-                    <div className="mb-2">
-                      <label className="form-label mb-0 small">
-                        Invoice Date *
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control form-control-sm"
-                        name="invoice_date"
-                        value={form.invoice_date}
-                        onChange={handleChange}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                    <div className="mb-2">
-                      <label className="form-label mb-0 small">
-                        Total Amount *
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="form-control form-control-sm"
-                        name="total"
-                        value={form.total}
-                        onChange={handleChange}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-                    <div className="mb-0">
-                      <label className="form-label mb-0 small">Status</label>
-                      <select
-                        className="form-select form-select-sm"
-                        name="status"
-                        value={form.status}
-                        onChange={handleChange}
-                        disabled={loading}
-                      >
-                        {STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s
-                              .replace(/_/g, " ")
-                              .replace(/\b\w/g, (l) => l.toUpperCase())}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="mb-2">
+                    <label className="form-label mb-0 small">
+                      Total Amount *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-control form-control-sm"
+                      name="total"
+                      value={form.total}
+                      onChange={handleChange}
+                      required
+                      disabled={loading}
+                    />
                   </div>
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={closeModal}
+                  <div className="mb-0">
+                    <label className="form-label mb-0 small">Status</label>
+                    <select
+                      className="form-select form-select-sm"
+                      name="status"
+                      value={form.status}
+                      onChange={handleChange}
                       disabled={loading}
                     >
-                      Close
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn btn-sm btn-primary"
-                      disabled={loading}
-                    >
-                      {isEditing ? "Update" : "Save"}
-                    </button>
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </form>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={closeModal}
+                    disabled={loading}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-sm btn-primary"
+                    disabled={loading}
+                  >
+                    {"Save"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -682,6 +674,214 @@ const Invoices = () => {
             className="modal-backdrop fade show"
             style={{ zIndex: 1040 }}
             onClick={closeModal}
+          />
+        </>
+      )}
+
+      {showViewModal && viewInvoice && (
+        <>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ zIndex: 1050 }}
+            onClick={() => setShowViewModal(false)}
+          >
+            <div
+              className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-content border-0 shadow-lg">
+                <div className="modal-header border-0">
+                  <h5 className="modal-title fw-bold text-primary">
+                    Invoice #{viewInvoice.id}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowViewModal(false)}
+                  />
+                </div>
+
+                <div className="modal-body p-0">
+                  {/* === PRINTABLE INVOICE CONTENT === */}
+                  <div
+                    ref={viewInvoiceRef}
+                    className="bg-white"
+                    style={{
+                      padding: "40px",
+                      fontFamily: "'Segoe UI', Arial, sans-serif",
+                      color: "#333",
+                      minHeight: "100vh",
+                    }}
+                  >
+                    {/* Company Header */}
+                    <div className="text-center mb-5 pb-4 border-bottom">
+                      <h3
+                        className="fw-bold text-primary mb-1"
+                        style={{ fontSize: "24px" }}
+                      >
+                        {company?.name || "Your Company Name"}
+                      </h3>
+                      {company?.tax_id && (
+                        <p className="text-muted small mb-1">
+                          Tax ID: {company.tax_id}
+                        </p>
+                      )}
+                      {company?.phone && (
+                        <p className="text-muted small mb-1">
+                          Phone: {company.phone}
+                        </p>
+                      )}
+                      {company?.email && (
+                        <p className="text-muted small mb-1">
+                          Email: {company.email}
+                        </p>
+                      )}
+                      {company?.website && (
+                        <p className="text-muted small mb-0">
+                          Website: {company.website}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Invoice Info & Customer */}
+                    <div className="row mb-5">
+                      <div className="col-6">
+                        <h5 className="fw-bold text-dark">Bill To:</h5>
+                        <p className="mb-0 fw-semibold">
+                          {viewInvoice.customer_name}
+                        </p>
+                        <p className="text-muted small">
+                          Customer ID: {viewInvoice.customer_id}
+                        </p>
+                      </div>
+                      <div className="col-6 text-end">
+                        <h5 className="fw-bold text-dark">Invoice Details</h5>
+                        <p className="mb-1">
+                          <strong>Invoice #:</strong> {viewInvoice.id}
+                        </p>
+                        <p className="mb-1">
+                          <strong>Date:</strong>{" "}
+                          {formatDate(viewInvoice.invoice_date)}
+                        </p>
+                        <p className="mb-0">
+                          <strong>Status:</strong>{" "}
+                          {getStatusBadge(viewInvoice.status)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <div className="table-responsive mb-5">
+                      <table
+                        className="table table-bordered"
+                        style={{ borderCollapse: "collapse" }}
+                      >
+                        <thead className="bg-light">
+                          <tr>
+                            <th className="py-2 px-3 text-start fw-semibold">
+                              Item
+                            </th>
+                            <th className="py-2 px-3 text-center fw-semibold">
+                              Qty
+                            </th>
+                            <th className="py-2 px-3 text-end fw-semibold">
+                              Rate
+                            </th>
+                            <th className="py-2 px-3 text-end fw-semibold">
+                              Amount
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewInvoice.items?.map((it, idx) => (
+                            <tr key={idx}>
+                              <td className="py-2 px-3">
+                                {it.product_name || it.description || "Item"}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                {it.qty}
+                              </td>
+                              <td className="py-2 px-3 text-end">
+                                {formatCurrency(it.unit_price, currency)}
+                              </td>
+                              <td className="py-2 px-3 text-end fw-semibold">
+                                {formatCurrency(it.line_total, currency)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Total Section */}
+                    <div className="row justify-content-end">
+                      <div className="col-lg-5 col-md-6">
+                        <div className="bg-light p-4 rounded">
+                          {viewInvoice.discount > 0 && (
+                            <div className="d-flex justify-content-between mb-2">
+                              <span className="fw-medium">Discount:</span>
+                              <span>
+                                {formatCurrency(viewInvoice.discount, currency)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="d-flex justify-content-between border-top pt-3">
+                            <h4 className="fw-bold text-dark mb-0">Total:</h4>
+                            <h4 className="fw-bold text-primary mb-0">
+                              {formatCurrency(viewInvoice.total, currency)}
+                            </h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="text-center mt-5 pt-4 border-top text-muted small">
+                      <p className="mb-1">Thank you for your business!</p>
+                      <p className="mb-1">
+                        Powered by <strong>Xnoll</strong> —{" "}
+                        <a
+                          href="https://www.xnoll.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          www.xnoll.com
+                        </a>
+                      </p>
+                      {company?.email && (
+                        <p className="mb-0">
+                          For support: <strong>{company.email}</strong>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {/* === END PRINTABLE CONTENT === */}
+                </div>
+
+                <div className="modal-footer border-0">
+                  <button
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={() => setShowViewModal(false)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm px-4"
+                    onClick={handleDownloadPDF}
+                  >
+                    📄 Download PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Backdrop */}
+          <div
+            className="modal-backdrop fade show"
+            style={{ zIndex: 1040 }}
+            onClick={() => setShowViewModal(false)}
           />
         </>
       )}

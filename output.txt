@@ -571,6 +571,10 @@ ipcMain.handle("bookings:delete", async (_event, id) => {
   return db.deleteBookingWithItems(id);
 });
 
+ipcMain.handle("bookings:getById", async (_event, id) => {
+  return db.getBookingsById(id);
+});
+
 
 ===============================
 FILE: electron/ipc/reports.ipc.js
@@ -1143,6 +1147,7 @@ contextBridge.exposeInMainWorld("xnoll", {
   bookingsCreate: (payload) => ipcRenderer.invoke("bookings:create", payload),
   bookingsUpdate: (payload) => ipcRenderer.invoke("bookings:update", payload),
   bookingsDelete: (id) => ipcRenderer.invoke("bookings:delete", id),
+  getBookingsById: (id) => ipcRenderer.invoke("bookings:getById", id),
 
   // Invoices API
   invoicesList: () => ipcRenderer.invoke("invoices:list"),
@@ -2012,9 +2017,10 @@ const statements = {
   `),
 
   // Booking Items
+  // Booking Items
   insertBookingItem: db.prepare(`
-    INSERT INTO booking_items (booking_id, product_id, unit_price, line_total)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO booking_items (booking_id, product_id, qty, unit_price, line_total)
+    VALUES (?, ?, ?, ?, ?)
   `),
   deleteBookingItems: db.prepare(
     "DELETE FROM booking_items WHERE booking_id = ?"
@@ -2043,8 +2049,8 @@ const statements = {
 
   // Invoice Items
   insertInvoiceItem: db.prepare(`
-    INSERT INTO invoice_items (invoice_id, product_id, description, unit_price, line_total)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO invoice_items (invoice_id, product_id, description, qty, unit_price, line_total)
+    VALUES (?, ?, ?, ?, ?, ?)
   `),
   deleteInvoiceItems: db.prepare(
     "DELETE FROM invoice_items WHERE invoice_id = ?"
@@ -2177,7 +2183,7 @@ function getBookingsWithCustomFields() {
   return bookings;
 }
 
-function getBookingById(id) {
+function getBookingsById(id) {
   const booking = db
     .prepare(
       `
@@ -2212,6 +2218,29 @@ function getInvoiceById(id) {
     invoice.items = statements.getInvoiceItems.all(id);
   }
   return invoice || null;
+}
+
+function getInvoicesWithItems() {
+  const invoices = statements.getAllInvoices.all();
+  const products = statements.getAllProducts.all();
+  const productMap = {};
+  products.forEach(p => productMap[p.id] = p);
+
+  for (const invoice of invoices) {
+    invoice.items = statements.getInvoiceItems.all(invoice.id);
+
+    // Enrich items with product name if available
+    if (Array.isArray(invoice.items)) {
+      invoice.items = invoice.items.map(item => ({
+        ...item,
+        product_name: productMap[item.product_id]?.name || item.description || "Unknown Item"
+      }));
+    } else {
+      invoice.items = [];
+    }
+  }
+
+  return invoices;
 }
 
 function checkSkuExists(sku, excludeId = null) {
@@ -2258,6 +2287,7 @@ function createBookingWithItems(data) {
       statements.insertBookingItem.run(
         bookingId,
         item.product_id,
+        qty,
         unitPrice,
         lineTotal
       );
@@ -2306,6 +2336,7 @@ function updateBookingWithItems(data) {
       statements.insertBookingItem.run(
         data.id,
         item.product_id,
+        qty,
         unitPrice,
         lineTotal
       );
@@ -2323,6 +2354,47 @@ function deleteBookingWithItems(id) {
     statements.deleteBookingItems.run(id);
     statements.deleteBooking.run(id);
     return true;
+  })();
+}
+
+/**
+ * Create invoice with items (ATOMIC)
+ * payload: { invoice: { invoice_number, customer_id, booking_id, total, discount, invoice_date, due_date, status, notes }, items: [ { product_id, description, qty, unit_price, line_total } ] }
+ */
+function createInvoiceWithItems(data) {
+  return db.transaction(() => {
+    const inv = data.invoice || data; // allow old payload shape
+    const info = statements.insertInvoice.run(
+      inv.invoice_number || null,
+      inv.customer_id || null,
+      inv.booking_id || null,
+      inv.total || 0,
+      inv.discount || 0,
+      inv.invoice_date,
+      inv.due_date || null,
+      inv.status || "unpaid",
+      inv.notes || ""
+    );
+    const invoiceId = info.lastInsertRowid;
+
+    if (Array.isArray(data.items)) {
+      for (const it of data.items) {
+        const qty = Number(it.qty || 1);
+        const unitPrice = Number(it.unit_price || 0);
+        const lineTotal =
+          it.line_total != null ? Number(it.line_total) : qty * unitPrice;
+        statements.insertInvoiceItem.run(
+          invoiceId,
+          it.product_id || null,
+          it.description || "",
+          qty,
+          unitPrice,
+          lineTotal
+        );
+      }
+    }
+
+    return { id: invoiceId };
   })();
 }
 
@@ -2389,6 +2461,7 @@ module.exports = {
   createBookingWithItems,
   updateBookingWithItems,
   deleteBookingWithItems,
+  createInvoiceWithItems,
   // Bookings
   insertBooking: (data) => {
     const info = statements.insertBooking.run(
@@ -2420,7 +2493,7 @@ module.exports = {
   getBookingsWithCustomFields,
   listBookingsInRange: (start, end) =>
     statements.getBookingsInRange.all(start, end),
-  getBookingById,
+  getBookingsById,
   insertBookingItem: (data) =>
     statements.insertBookingItem.run(
       data.booking_id,
@@ -2464,7 +2537,7 @@ module.exports = {
       statements.deleteInvoice.run(id);
     })();
   },
-  getAllInvoices: () => statements.getAllInvoices.all(),
+  getAllInvoices: () => getInvoicesWithItems(),
   getInvoiceById,
   insertInvoiceItem: (data) =>
     statements.insertInvoiceItem.run(
@@ -6843,11 +6916,38 @@ const BookingPage = () => {
   const updateItem = (index, key, value) => {
     setItems((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [key]: value };
 
+      // if changing product, prevent duplicates
       if (key === "product_id") {
-        const p = products.find((x) => x.id === Number(value));
+        const newPid = String(value);
+        // check other items for same product
+        const duplicateIndex = copy.findIndex(
+          (it, i) =>
+            i !== index && String(it.product_id) === newPid && newPid !== ""
+        );
+        if (duplicateIndex !== -1) {
+          alert(
+            "This product is already selected in another line. Please pick a different product."
+          );
+          return prev; // no change
+        }
+      }
+
+      // update the item
+      const existing = copy[index] || { product_id: "", qty: 1, unit_price: 0 };
+      copy[index] = { ...existing, [key]: value };
+
+      // when product selected, set unit price automatically
+      if (key === "product_id") {
+        const p = products.find((x) => String(x.id) === String(value));
         if (p) copy[index].unit_price = Number(p.price || 0);
+        else copy[index].unit_price = 0;
+      }
+
+      // ensure qty stays a number (and at least 1)
+      if (key === "qty") {
+        const n = Number(value || 0);
+        copy[index].qty = n <= 0 ? 1 : n;
       }
 
       return copy;
@@ -6890,20 +6990,43 @@ const BookingPage = () => {
       customer_id: Number(form.customer_id) || null,
       booking_date: form.booking_date.trim(),
       status: form.status || "pending",
-      items: items.map((i) => ({
+      items: items.map((i, idx) => ({
         product_id: Number(i.product_id),
-        unit_price: Number(i.unit_price),
-        line_total: Number(i.unit_price) * Number(i.qty),
+        qty: Number(i.qty || 1),
+        unit_price: Number(i.unit_price || 0),
+        line_total: Number(i.unit_price || 0) * Number(i.qty || 1),
       })),
     };
 
-    if (
-      !payload.customer_id ||
-      !payload.booking_date ||
-      payload.items.length === 0
-    ) {
-      alert("Customer, date and at least one item required");
+    // Validation
+    if (!payload.customer_id) {
+      alert("Please select a customer.");
       return;
+    }
+    if (!payload.booking_date) {
+      alert("Please select a date & time.");
+      return;
+    }
+    if (!payload.items || payload.items.length === 0) {
+      alert("Please add at least one item.");
+      return;
+    }
+
+    // ensure no empty or duplicate product ids
+    const seen = new Set();
+    for (let idx = 0; idx < payload.items.length; idx++) {
+      const it = payload.items[idx];
+      if (!it.product_id) {
+        alert(`Please select a product for item ${idx + 1}.`);
+        return;
+      }
+      if (seen.has(it.product_id)) {
+        alert(
+          `Duplicate product selected for item ${idx + 1}. Please choose a different product.`
+        );
+        return;
+      }
+      seen.add(it.product_id);
     }
 
     setLoading(true);
@@ -6938,8 +7061,7 @@ const BookingPage = () => {
   };
 
   const handleEdit = async (b) => {
-    const full = await window.xnoll.bookingGetById(b.id);
-
+    const full = await window.xnoll.getBookingsById(b.id);
     setForm({
       id: full.id,
       customer_id: full.customer_id || "",
@@ -6951,8 +7073,11 @@ const BookingPage = () => {
       Array.isArray(full.items)
         ? full.items.map((i) => ({
             product_id: i.product_id,
-            qty: 1,
+            qty: Number(i.qty || 1),
             unit_price: Number(i.unit_price || 0),
+            line_total: Number(
+              i.line_total || Number(i.unit_price || 0) * Number(i.qty || 1)
+            ),
           }))
         : []
     );
@@ -6990,9 +7115,10 @@ const BookingPage = () => {
   const handleCreateInvoice = async () => {
     if (!window.xnoll || !selectedBooking) return;
 
-    // const prod = productMap[selectedBooking.product_id];
     const amount = selectedBooking.items?.reduce(
-      (sum, i) => sum + Number(i.line_total || 0),
+      (sum, i) =>
+        sum +
+        Number(i.line_total || Number(i.unit_price || 0) * Number(i.qty || 1)),
       0
     );
     const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
@@ -7002,51 +7128,57 @@ const BookingPage = () => {
       return;
     }
 
-    // Check for existing invoice
     const existingInvoices = invoiceMap[selectedBooking.customer_id] || [];
     const existing = existingInvoices.find(
       (inv) => inv.booking_id === selectedBooking.id
     );
-
     if (existing) {
-      alert(
-        `Invoice already generated today (ID: ${existing.id}). Check Invoices module to view/print or update.`
-      );
+      alert(`Invoice already generated today (ID: ${existing.id}).`);
       setShowInvoiceModal(false);
-      await loadAll(); // Make sure UI is updated
+      await loadAll();
       return;
     }
 
     setLoading(true);
     try {
-      const newInvoice = await window.xnoll.invoicesCreate({
-        customer_id: selectedBooking.customer_id,
-        booking_id: selectedBooking.id,
-        total: amount,
-        invoice_date: today,
-        status: "unpaid",
-      });
-      // Update booking status to completed
+      // Build invoice payload including items
+      const invoicePayload = {
+        invoice: {
+          invoice_number: null, // will be generated or left null
+          customer_id: selectedBooking.customer_id,
+          booking_id: selectedBooking.id,
+          total: amount,
+          discount: 0,
+          invoice_date: today,
+          due_date: null,
+          status: "unpaid",
+          notes: "",
+        },
+        items: (selectedBooking.items || []).map((it) => ({
+          product_id: it.product_id || null,
+          description: productMap[it.product_id]?.name || "",
+          qty: Number(it.qty || 1),
+          unit_price: Number(it.unit_price || 0),
+          line_total: Number(
+            it.line_total || Number(it.unit_price || 0) * Number(it.qty || 1)
+          ),
+        })),
+      };
+
+      const newInvoice = await window.xnoll.invoicesCreate(invoicePayload);
+      // mark booking completed
       await window.xnoll.bookingsUpdate({
         id: selectedBooking.id,
+        booking_date: selectedBooking.booking_date,
         status: "completed",
       });
-      await loadAll(); // Always refresh state so button disables instantly
-      alert(
-        "Invoice created and booking marked as completed. Check Invoices module to view/print."
-      );
+      await loadAll();
+      alert("Invoice created and booking marked as completed.");
       setShowInvoiceModal(false);
     } catch (err) {
       console.error("Error generating invoice:", err);
-      if (
-        (err && err.message && err.message.includes("UNIQUE")) ||
-        (err && err.toString().includes("duplicate"))
-      ) {
-        alert("Invoice already generated for this booking today.");
-      } else {
-        alert("Failed to generate invoice. Please check data and try again.");
-      }
-      await loadAll(); // Refresh state to keep UI consistent
+      alert("Failed to generate invoice. See console for details.");
+      await loadAll();
     } finally {
       setLoading(false);
     }
@@ -7109,8 +7241,7 @@ const BookingPage = () => {
               onClick={openNewModal}
               disabled={loading}
               title={
-                !customers.length ? "Add customers and products first"
-                  : ""
+                !customers.length ? "Add customers and products first" : ""
               }
             >
               + New Booking
@@ -8289,11 +8420,16 @@ const Invoices = () => {
     return filtered.slice(start, start + pageSize);
   }, [filtered, currentPage, pageSize]);
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return "";
-  return dateStr.slice(0, 10); // YYYY-MM-DD
-};
-
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   const getStatusBadge = (status) => {
     const s = status || "unpaid";
