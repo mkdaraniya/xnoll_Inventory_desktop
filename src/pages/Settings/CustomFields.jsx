@@ -7,7 +7,6 @@ const modules = [
   { value: 'customers', label: 'Customers' },
   { value: 'products', label: 'Products' },
   { value: 'bookings', label: 'Bookings' },
-  { value: 'notes', label: 'Notes' },
 ];
 
 const fieldTypes = [

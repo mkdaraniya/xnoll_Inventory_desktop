@@ -1,22 +1,26 @@
-const { ipcMain } = require('electron');
-const db = require('../database/db');
+const { ipcMain } = require("electron");
+const db = require("../database/db");
 
 // list
-ipcMain.handle('bookings:list', async () => {
-    return db.getBookingsWithCustomFields();
+ipcMain.handle("bookings:list", async () => {
+  return db.getBookingsWithCustomFields();
 });
 
-// create
-ipcMain.handle('bookings:create', async (_event, payload) => {
-  return db.insertBooking(payload);
+// create (header + items)
+ipcMain.handle("bookings:create", async (_event, payload) => {
+  return db.createBookingWithItems(payload);
 });
 
-// update
-ipcMain.handle('bookings:update', async (_event, payload) => {
-  return db.updateBooking(payload);
+// update (header + items)
+ipcMain.handle("bookings:update", async (_event, payload) => {
+  return db.updateBookingWithItems(payload);
 });
 
-// delete
-ipcMain.handle('bookings:delete', async (_event, id) => {
-  return db.deleteBooking(id);
+// delete (header + items)
+ipcMain.handle("bookings:delete", async (_event, id) => {
+  return db.deleteBookingWithItems(id);
+});
+
+ipcMain.handle("bookings:getById", async (_event, id) => {
+  return db.getBookingsById(id);
 });

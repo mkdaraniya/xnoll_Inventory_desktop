@@ -51,7 +51,6 @@ CREATE INDEX idx_products_category ON products(category);
 CREATE TABLE IF NOT EXISTS bookings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   customer_id INTEGER,
-  product_id INTEGER,
   service_name TEXT,
   booking_date TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
@@ -59,13 +58,29 @@ CREATE TABLE IF NOT EXISTS bookings (
   notes TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
-  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX idx_bookings_date ON bookings(booking_date);
 CREATE INDEX idx_bookings_status ON bookings(status);
+
+CREATE TABLE IF NOT EXISTS booking_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL,
+  product_id INTEGER NOT NULL,
+  qty REAL DEFAULT 1,
+  unit_price REAL DEFAULT 0,
+  line_total REAL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_booking_items_booking ON booking_items(booking_id);
+CREATE INDEX idx_booking_items_product ON booking_items(product_id);
+
 
 CREATE TABLE IF NOT EXISTS invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,3 +103,19 @@ CREATE INDEX idx_invoices_customer ON invoices(customer_id);
 CREATE INDEX idx_invoices_date ON invoices(invoice_date);
 CREATE INDEX idx_invoices_status ON invoices(status);
 CREATE INDEX idx_invoices_number ON invoices(invoice_number);
+
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER NOT NULL,
+  product_id INTEGER,
+  description TEXT,
+  qty REAL DEFAULT 1,
+  unit_price REAL DEFAULT 0,
+  line_total REAL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id);

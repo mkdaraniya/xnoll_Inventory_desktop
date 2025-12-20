@@ -74,18 +74,18 @@ const statements = {
   updateSettings: db.prepare(`
     UPDATE settings SET
       company_name = ?, currency = ?, auto_generate_sku = ?, sku_prefix = ?,
-      enable_reminders = ?, reminder_lead_minutes = ?, language = ?,
+      language = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `),
 
   // Customers
   insertCustomer: db.prepare(`
-    INSERT INTO customers (name, phone, email, created_at, updated_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO customers (name, phone, email, address, created_at, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateCustomer: db.prepare(`
-    UPDATE customers SET name = ?, phone = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteCustomer: db.prepare("DELETE FROM customers WHERE id = ?"),
@@ -93,11 +93,11 @@ const statements = {
 
   // Products
   insertProduct: db.prepare(`
-    INSERT INTO products (sku, name, unit, price, discount, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO products (sku, name, description, unit, price, discount, category, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateProduct: db.prepare(`
-    UPDATE products SET sku = ?, name = ?, unit = ?, price = ?, discount = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE products SET sku = ?, name = ?, description = ?, unit = ?, price = ?, discount = ?, category = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteProduct: db.prepare("DELETE FROM products WHERE id = ?"),
@@ -105,75 +105,92 @@ const statements = {
 
   // Bookings
   insertBooking: db.prepare(`
-    INSERT INTO bookings (customer_id, product_id, service_name, booking_date, status, discount, created_at, updated_at)
+    INSERT INTO bookings (customer_id, service_name, booking_date, status, discount, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateBooking: db.prepare(`
-    UPDATE bookings SET customer_id = ?, product_id = ?, service_name = ?, booking_date = ?, status = ?, discount = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE bookings SET customer_id = ?, service_name = ?, booking_date = ?, status = ?, discount = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteBooking: db.prepare("DELETE FROM bookings WHERE id = ?"),
   getAllBookings: db.prepare(`
-    SELECT b.*,
-           c.name as customer_name,
-           p.name as product_name
+    SELECT b.*, c.name as customer_name
     FROM bookings b
     LEFT JOIN customers c ON b.customer_id = c.id
-    LEFT JOIN products p ON b.product_id = p.id
     ORDER BY b.id DESC
-`),
+  `),
   getBookingsInRange: db.prepare(`
-    SELECT b.*,
-           c.name as customer_name,
-           p.name as product_name
+    SELECT b.*, c.name as customer_name
     FROM bookings b
     LEFT JOIN customers c ON b.customer_id = c.id
-    LEFT JOIN products p ON b.product_id = p.id
     WHERE b.booking_date >= ? AND b.booking_date <= ?
     ORDER BY b.booking_date
   `),
 
+  // Booking Items
+  // Booking Items
+  insertBookingItem: db.prepare(`
+    INSERT INTO booking_items (booking_id, product_id, qty, unit_price, line_total)
+    VALUES (?, ?, ?, ?, ?)
+  `),
+  deleteBookingItems: db.prepare(
+    "DELETE FROM booking_items WHERE booking_id = ?"
+  ),
+  getBookingItems: db.prepare(
+    "SELECT * FROM booking_items WHERE booking_id = ?"
+  ),
+
   // Invoices
   insertInvoice: db.prepare(`
-    INSERT INTO invoices (customer_id, booking_id, total, discount, invoice_date, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO invoices (invoice_number, customer_id, booking_id, total, discount, invoice_date, due_date, status, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateInvoice: db.prepare(`
-    UPDATE invoices SET customer_id = ?, booking_id = ?, total = ?, discount = ?, invoice_date = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE invoices SET invoice_number = ?, customer_id = ?, booking_id = ?, total = ?, discount = ?, invoice_date = ?, due_date = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteInvoice: db.prepare("DELETE FROM invoices WHERE id = ?"),
   getAllInvoices: db.prepare(`
-    SELECT i.*,
-           c.name as customer_name,
-           b.service_name
+    SELECT i.*, c.name as customer_name, b.service_name
     FROM invoices i
     LEFT JOIN customers c ON i.customer_id = c.id
     LEFT JOIN bookings b ON i.booking_id = b.id
     ORDER BY i.id DESC
   `),
 
+  // Invoice Items
+  insertInvoiceItem: db.prepare(`
+    INSERT INTO invoice_items (invoice_id, product_id, description, qty, unit_price, line_total)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  deleteInvoiceItems: db.prepare(
+    "DELETE FROM invoice_items WHERE invoice_id = ?"
+  ),
+  getInvoiceItems: db.prepare(
+    "SELECT * FROM invoice_items WHERE invoice_id = ?"
+  ),
+
   // Notes
   insertNote: db.prepare(`
-    INSERT INTO notes (title, content, tags, is_pinned, created_at, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO notes (title, content, tags, color, is_pinned, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateNote: db.prepare(`
-    UPDATE notes SET title = ?, content = ?, tags = ?, is_pinned = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE notes SET title = ?, content = ?, tags = ?, color = ?, is_pinned = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteNote: db.prepare("DELETE FROM notes WHERE id = ?"),
   getAllNotes: db.prepare(
-    "SELECT * FROM notes ORDER BY is_pinned DESC, id DESC"
+    "SELECT * FROM notes ORDER BY is_pinned DESC, created_at DESC"
   ),
 
   // Custom Fields
   insertCustomField: db.prepare(`
-    INSERT INTO custom_fields (field_name, field_label, module, field_type, is_required, display_in_grid, display_in_filter, is_sortable, is_searchable, options, default_value, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO custom_fields (module, field_name, field_label, field_type, is_required, display_in_grid, display_in_filter, is_sortable, is_searchable, options, default_value, field_order, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateCustomField: db.prepare(`
-    UPDATE custom_fields SET field_name = ?, field_label = ?, module = ?, field_type = ?, is_required = ?, display_in_grid = ?, display_in_filter = ?, is_sortable = ?, is_searchable = ?, options = ?, default_value = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE custom_fields SET module = ?, field_name = ?, field_label = ?, field_type = ?, is_required = ?, display_in_grid = ?, display_in_filter = ?, is_sortable = ?, is_searchable = ?, options = ?, default_value = ?, field_order = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteCustomField: db.prepare("DELETE FROM custom_fields WHERE id = ?"),
@@ -204,26 +221,15 @@ const statements = {
     VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
 
-  // Reminders
-  insertReminder: db.prepare(`
-    INSERT INTO reminders (booking_id, reminder_time, status, created_at, updated_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `),
-  updateReminder: db.prepare(`
-    UPDATE reminders SET booking_id = ?, reminder_time = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `),
-  deleteReminder: db.prepare("DELETE FROM reminders WHERE id = ?"),
-  getAllReminders: db.prepare("SELECT * FROM reminders ORDER BY reminder_time"),
-  getDueReminders: db.prepare(
-    "SELECT * FROM reminders WHERE reminder_time <= ? AND status = 'pending'"
-  ),
-
   // Company Profile
   getCompanyProfile: db.prepare("SELECT * FROM company WHERE id = 1"),
   updateCompanyProfile: db.prepare(`
-    INSERT OR REPLACE INTO company (id, name, address, phone, email, website, tax_id, logo, created_at, updated_at)
-    VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT OR REPLACE INTO company (
+      id, name, logo, address, city, state, postal_code, country,
+      phone, email, website, tax_id, currency, timezone, date_format, time_format
+    ) VALUES (
+      1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    )
   `),
 
   // SKU validation
@@ -234,29 +240,7 @@ const statements = {
 
 // Helper function for custom fields
 function getAllCustomFields(module) {
-  const allFields = db
-    .prepare(
-      `
-    SELECT
-      id,
-      field_name as name,
-      field_label as label,
-      module,
-      field_type as type,
-      is_required as required,
-      display_in_grid,
-      display_in_filter,
-      is_sortable as sortable,
-      is_searchable as searchable,
-      options,
-      default_value,
-      field_order,
-      created_at,
-      updated_at
-    FROM custom_fields ORDER BY field_order, id
-  `
-    )
-    .all();
+  const allFields = statements.getAllCustomFields.all();
   return module ? allFields.filter((f) => f.module === module) : allFields;
 }
 
@@ -265,21 +249,15 @@ function getCustomersWithCustomFields() {
   const customers = statements.getAllCustomers.all();
   const customFields = getAllCustomFields("customers");
 
-  if (customFields.length === 0) {
-    return customers;
-  }
+  if (customFields.length === 0) return customers;
 
-  // For each customer, fetch their custom field values
   for (const customer of customers) {
     customer.custom_fields = {};
     for (const field of customFields) {
-      const value = statements.getCustomFieldValues.get(field.id, customer.id);
-      if (value) {
-        customer.custom_fields[field.name] = value.value;
-      }
+      const row = statements.getCustomFieldValues.get(field.id, customer.id);
+      if (row) customer.custom_fields[field.name] = row.value;
     }
   }
-
   return customers;
 }
 
@@ -287,68 +265,248 @@ function getProductsWithCustomFields() {
   const products = statements.getAllProducts.all();
   const customFields = getAllCustomFields("products");
 
-  if (customFields.length === 0) {
-    return products;
-  }
+  if (customFields.length === 0) return products;
 
-  // For each product, fetch their custom field values
   for (const product of products) {
     product.custom_fields = {};
     for (const field of customFields) {
-      const value = statements.getCustomFieldValues.get(field.id, product.id);
-      if (value) {
-        product.custom_fields[field.name] = value.value;
-      }
+      const row = statements.getCustomFieldValues.get(field.id, product.id);
+      if (row) product.custom_fields[field.name] = row.value;
     }
   }
-
   return products;
 }
 
-function getBookingsWithCustomFields(p) {
+function getBookingsWithCustomFields() {
   const bookings = statements.getAllBookings.all();
   const customFields = getAllCustomFields("bookings");
 
-  if (customFields.length === 0) {
-    return bookings;
-  }
-
-  // For each booking, fetch their custom field values
   for (const booking of bookings) {
+    // 🔥 FIX: always attach items
+    booking.items = statements.getBookingItems.all(booking.id);
+
     booking.custom_fields = {};
     for (const field of customFields) {
-      const value = statements.getCustomFieldValues.get(field.id, booking.id);
-      if (value) {
-        booking.custom_fields[field.name] = value.value;
+      const row = statements.getCustomFieldValues.get(field.id, booking.id);
+      if (row) booking.custom_fields[field.name] = row.value;
     }
   }
-  }
-
   return bookings;
 }
 
+function getBookingsById(id) {
+  const booking = db
+    .prepare(
+      `
+    SELECT b.*, c.name as customer_name
+    FROM bookings b
+    LEFT JOIN customers c ON b.customer_id = c.id
+    WHERE b.id = ?
+  `
+    )
+    .get(id);
 
+  if (booking) {
+    booking.items = statements.getBookingItems.all(id);
+  }
+  return booking || null;
+}
 
-function listBookingsInRange(start, end) {
-  return statements.getBookingsInRange.all(start, end);
+function getInvoiceById(id) {
+  const invoice = db
+    .prepare(
+      `
+    SELECT i.*, c.name as customer_name, b.service_name
+    FROM invoices i
+    LEFT JOIN customers c ON i.customer_id = c.id
+    LEFT JOIN bookings b ON i.booking_id = b.id
+    WHERE i.id = ?
+  `
+    )
+    .get(id);
+
+  if (invoice) {
+    invoice.items = statements.getInvoiceItems.all(id);
+  }
+  return invoice || null;
+}
+
+function getInvoicesWithItems() {
+  const invoices = statements.getAllInvoices.all();
+  const products = statements.getAllProducts.all();
+  const productMap = {};
+  products.forEach(p => productMap[p.id] = p);
+
+  for (const invoice of invoices) {
+    invoice.items = statements.getInvoiceItems.all(invoice.id);
+
+    // Enrich items with product name if available
+    if (Array.isArray(invoice.items)) {
+      invoice.items = invoice.items.map(item => ({
+        ...item,
+        product_name: productMap[item.product_id]?.name || item.description || "Unknown Item"
+      }));
+    } else {
+      invoice.items = [];
+    }
+  }
+
+  return invoices;
 }
 
 function checkSkuExists(sku, excludeId = null) {
-  const result = statements.checkSkuExists.get(sku, excludeId || null);
+  const result = statements.checkSkuExists.get(sku, excludeId || 0);
   return !!result;
 }
 
-function getBookingById(id) {
-  const stmt = db.prepare(`
-    SELECT b.*,
-           c.name as customer_name,
-           p.name as product_name
-    FROM bookings b
-    LEFT JOIN customers c ON b.customer_id = c.id
-    LEFT JOIN products p ON b.product_id = p.id
-    WHERE b.id = ?
-  `);
-  return stmt.get(id);
+/**
+ * ✅ Create booking with items (ATOMIC)
+ * - Inserts booking ONCE
+ * - Inserts multiple booking_items
+ * - Uses transaction (ERP-safe)
+ */
+function createBookingWithItems(data) {
+  return db.transaction(() => {
+    // 1️⃣ Create booking header
+    const bookingInfo = statements.insertBooking.run(
+      data.customer_id || null,
+      data.service_name || "",
+      data.booking_date,
+      data.status || "pending",
+      data.discount || 0,
+      data.notes || ""
+    );
+
+    const bookingId = bookingInfo.lastInsertRowid;
+
+    // 2️⃣ Validate items
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error("Booking must contain at least one item");
+    }
+
+    // 3️⃣ Insert booking items
+    for (const item of data.items) {
+      if (!item.product_id) {
+        throw new Error("Product ID is required in booking item");
+      }
+
+      const qty = Number(item.qty || 1);
+      const unitPrice = Number(item.unit_price || 0);
+      const lineTotal =
+        item.line_total != null ? Number(item.line_total) : qty * unitPrice;
+
+      statements.insertBookingItem.run(
+        bookingId,
+        item.product_id,
+        qty,
+        unitPrice,
+        lineTotal
+      );
+    }
+
+    return { id: bookingId };
+  })();
+}
+
+/**
+ * ✅ Update booking with items (ATOMIC)
+ * - Updates booking header
+ * - Deletes old items
+ * - Inserts new items
+ */
+function updateBookingWithItems(data) {
+  return db.transaction(() => {
+    if (!data.id) {
+      throw new Error("Booking ID is required for update");
+    }
+
+    // 1️⃣ Update booking header
+    statements.updateBooking.run(
+      data.customer_id || null,
+      data.service_name || "",
+      data.booking_date,
+      data.status || "pending",
+      data.discount || 0,
+      data.notes || "",
+      data.id
+    );
+
+    // 2️⃣ Replace items
+    statements.deleteBookingItems.run(data.id);
+
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error("Booking must contain at least one item");
+    }
+
+    for (const item of data.items) {
+      const qty = Number(item.qty || 1);
+      const unitPrice = Number(item.unit_price || 0);
+      const lineTotal =
+        item.line_total != null ? Number(item.line_total) : qty * unitPrice;
+
+      statements.insertBookingItem.run(
+        data.id,
+        item.product_id,
+        qty,
+        unitPrice,
+        lineTotal
+      );
+    }
+
+    return { id: data.id };
+  })();
+}
+
+/**
+ * ✅ Delete booking with items
+ */
+function deleteBookingWithItems(id) {
+  return db.transaction(() => {
+    statements.deleteBookingItems.run(id);
+    statements.deleteBooking.run(id);
+    return true;
+  })();
+}
+
+/**
+ * Create invoice with items (ATOMIC)
+ * payload: { invoice: { invoice_number, customer_id, booking_id, total, discount, invoice_date, due_date, status, notes }, items: [ { product_id, description, qty, unit_price, line_total } ] }
+ */
+function createInvoiceWithItems(data) {
+  return db.transaction(() => {
+    const inv = data.invoice || data; // allow old payload shape
+    const info = statements.insertInvoice.run(
+      inv.invoice_number || null,
+      inv.customer_id || null,
+      inv.booking_id || null,
+      inv.total || 0,
+      inv.discount || 0,
+      inv.invoice_date,
+      inv.due_date || null,
+      inv.status || "unpaid",
+      inv.notes || ""
+    );
+    const invoiceId = info.lastInsertRowid;
+
+    if (Array.isArray(data.items)) {
+      for (const it of data.items) {
+        const qty = Number(it.qty || 1);
+        const unitPrice = Number(it.unit_price || 0);
+        const lineTotal =
+          it.line_total != null ? Number(it.line_total) : qty * unitPrice;
+        statements.insertInvoiceItem.run(
+          invoiceId,
+          it.product_id || null,
+          it.description || "",
+          qty,
+          unitPrice,
+          lineTotal
+        );
+      }
+    }
+
+    return { id: invoiceId };
+  })();
 }
 
 // --- Public API ---
@@ -361,114 +519,164 @@ module.exports = {
       data.currency,
       data.auto_generate_sku,
       data.sku_prefix,
-      data.enable_reminders,
-      data.reminder_lead_minutes,
       data.language
     ),
 
   // Customers
   insertCustomer: (data) => {
-    const result = statements.insertCustomer.run(
+    const info = statements.insertCustomer.run(
       data.name,
       data.phone,
-      data.email
+      data.email,
+      data.address || ""
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateCustomer: (data) =>
-    statements.updateCustomer.run(data.name, data.phone, data.email, data.id),
+    statements.updateCustomer.run(
+      data.name,
+      data.phone,
+      data.email,
+      data.address || "",
+      data.id
+    ),
   deleteCustomer: (id) => statements.deleteCustomer.run(id),
   getCustomersWithCustomFields,
 
   // Products
   insertProduct: (data) => {
-    const result = statements.insertProduct.run(
+    const info = statements.insertProduct.run(
       data.sku,
       data.name,
-      data.unit,
-      data.price,
-      data.discount || 0
+      data.description || "",
+      data.unit || "",
+      data.price || 0,
+      data.discount || 0,
+      data.category || ""
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateProduct: (data) =>
     statements.updateProduct.run(
       data.sku,
       data.name,
-      data.unit,
-      data.price,
+      data.description || "",
+      data.unit || "",
+      data.price || 0,
       data.discount || 0,
+      data.category || "",
       data.id
     ),
   deleteProduct: (id) => statements.deleteProduct.run(id),
   getProductsWithCustomFields,
-
+  createBookingWithItems,
+  updateBookingWithItems,
+  deleteBookingWithItems,
+  createInvoiceWithItems,
   // Bookings
   insertBooking: (data) => {
-    const result = statements.insertBooking.run(
+    const info = statements.insertBooking.run(
       data.customer_id,
-      data.product_id,
-      data.service_name,
+      data.service_name || "",
       data.booking_date,
       data.status || "pending",
-      data.discount || 0
+      data.discount || 0,
+      data.notes || ""
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateBooking: (data) =>
     statements.updateBooking.run(
       data.customer_id,
-      data.product_id,
-      data.service_name,
+      data.service_name || "",
       data.booking_date,
-      data.status,
+      data.status || "pending",
       data.discount || 0,
+      data.notes || "",
       data.id
     ),
-  deleteBooking: (id) => statements.deleteBooking.run(id),
+  deleteBooking: (id) => {
+    db.transaction(() => {
+      statements.deleteBookingItems.run(id);
+      statements.deleteBooking.run(id);
+    })();
+  },
   getBookingsWithCustomFields,
-  listBookingsInRange,
+  listBookingsInRange: (start, end) =>
+    statements.getBookingsInRange.all(start, end),
+  getBookingsById,
+  insertBookingItem: (data) =>
+    statements.insertBookingItem.run(
+      data.booking_id,
+      data.product_id,
+      data.unit_price,
+      data.line_total
+    ),
+  getBookingItems: (bookingId) => statements.getBookingItems.all(bookingId),
 
   // Invoices
   insertInvoice: (data) => {
-    const result = statements.insertInvoice.run(
+    const info = statements.insertInvoice.run(
+      data.invoice_number,
       data.customer_id,
-      data.booking_id,
-      data.total,
+      data.booking_id || null,
+      data.total || 0,
       data.discount || 0,
       data.invoice_date,
-      data.status || "unpaid"
+      data.due_date || null,
+      data.status || "unpaid",
+      data.notes || ""
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateInvoice: (data) =>
     statements.updateInvoice.run(
+      data.invoice_number,
       data.customer_id,
-      data.booking_id,
-      data.total,
+      data.booking_id || null,
+      data.total || 0,
       data.discount || 0,
       data.invoice_date,
-      data.status,
+      data.due_date || null,
+      data.status || "unpaid",
+      data.notes || "",
       data.id
     ),
-  deleteInvoice: (id) => statements.deleteInvoice.run(id),
-  getAllInvoices: () => statements.getAllInvoices.all(),
+  deleteInvoice: (id) => {
+    db.transaction(() => {
+      statements.deleteInvoiceItems.run(id);
+      statements.deleteInvoice.run(id);
+    })();
+  },
+  getAllInvoices: () => getInvoicesWithItems(),
+  getInvoiceById,
+  insertInvoiceItem: (data) =>
+    statements.insertInvoiceItem.run(
+      data.invoice_id,
+      data.product_id || null,
+      data.description,
+      data.unit_price,
+      data.line_total
+    ),
+  getInvoiceItems: (invoiceId) => statements.getInvoiceItems.all(invoiceId),
 
   // Notes
   insertNote: (data) => {
-    const result = statements.insertNote.run(
+    const info = statements.insertNote.run(
       data.title,
-      data.content,
-      data.tags,
+      data.content || "",
+      data.tags || "",
+      data.color || "#ffffff",
       data.is_pinned || 0
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateNote: (data) =>
     statements.updateNote.run(
       data.title,
-      data.content,
-      data.tags,
+      data.content || "",
+      data.tags || "",
+      data.color || "#ffffff",
       data.is_pinned || 0,
       data.id
     ),
@@ -477,40 +685,42 @@ module.exports = {
 
   // Custom Fields
   insertCustomField: (data) => {
-    const result = statements.insertCustomField.run(
+    const info = statements.insertCustomField.run(
+      data.module,
       data.field_name,
       data.field_label,
-      data.module,
       data.field_type,
-      data.is_required,
-      data.display_in_grid,
-      data.display_in_filter,
-      data.is_sortable,
-      data.is_searchable,
-      data.options,
-      data.default_value
+      data.is_required || 0,
+      data.display_in_grid || 0,
+      data.display_in_filter || 0,
+      data.is_sortable || 0,
+      data.is_searchable || 0,
+      data.options || "",
+      data.default_value || "",
+      data.field_order || 0
     );
-    return { id: result.lastInsertRowid };
+    return { id: info.lastInsertRowid };
   },
   updateCustomField: (data) =>
     statements.updateCustomField.run(
+      data.module,
       data.field_name,
       data.field_label,
-      data.module,
       data.field_type,
-      data.is_required,
-      data.display_in_grid,
-      data.display_in_filter,
-      data.is_sortable,
-      data.is_searchable,
-      data.options,
-      data.default_value,
+      data.is_required || 0,
+      data.display_in_grid || 0,
+      data.display_in_filter || 0,
+      data.is_sortable || 0,
+      data.is_searchable || 0,
+      data.options || "",
+      data.default_value || "",
+      data.field_order || 0,
       data.id
     ),
   deleteCustomField: (id) => statements.deleteCustomField.run(id),
   getAllCustomFields: (module) => {
-    const allFields = statements.getAllCustomFields.all();
-    return module ? allFields.filter((f) => f.module === module) : allFields;
+    const all = statements.getAllCustomFields.all();
+    return module ? all.filter((f) => f.module === module) : all;
   },
   getCustomFieldValues: (fieldId, recordId) =>
     statements.getCustomFieldValues.get(fieldId, recordId),
@@ -521,42 +731,30 @@ module.exports = {
       data.value
     ),
 
-  // Reminders
-  insertReminder: (data) => {
-    const result = statements.insertReminder.run(
-      data.booking_id,
-      data.reminder_time,
-      data.status || "pending"
-    );
-    return { id: result.lastInsertRowid };
-  },
-  updateReminder: (data) =>
-    statements.updateReminder.run(
-      data.booking_id,
-      data.reminder_time,
-      data.status,
-      data.id
-    ),
-  deleteReminder: (id) => statements.deleteReminder.run(id),
-  getAllReminders: () => statements.getAllReminders.all(),
-  getDueReminders: (currentTime) => statements.getDueReminders.all(currentTime),
-
   // Company Profile
   getCompanyProfile: () => statements.getCompanyProfile.get(),
   updateCompanyProfile: (data) =>
     statements.updateCompanyProfile.run(
       data.name,
-      data.address,
-      data.phone,
-      data.email,
-      data.website,
-      data.tax_id,
-      data.logo_path
+      data.logo || null,
+      data.address || "",
+      data.city || "",
+      data.state || "",
+      data.postal_code || "",
+      data.country || "",
+      data.phone || "",
+      data.email || "",
+      data.website || "",
+      data.tax_id || "",
+      data.currency || "INR",
+      data.timezone || "Asia/Kolkata",
+      data.date_format || "DD/MM/YYYY",
+      data.time_format || "12h"
     ),
 
   // SKU validation
   checkSkuExists,
 
-  // Utility
-  getBookingById,
+  // Close DB (optional)
+  close: () => db.close(),
 };

@@ -22,7 +22,6 @@ require('./ipc/search.ipc');
 require('./ipc/backup.ipc');
 require('./ipc/customFields.ipc');
 require('./ipc/notes.ipc');
-require('./ipc/reminders.ipc');
 require('./ipc/reports.ipc');
 require('./ipc/company.ipc');
 require('./ipc/calendar.ipc');
@@ -73,9 +72,6 @@ function startApp() {
   // Register global shortcuts
   registerGlobalShortcuts();
   
-  // Start background services
-  startBackgroundServices();
-  
   // Handle app updates (future)
   // checkForUpdates();
 }
@@ -115,18 +111,6 @@ function registerGlobalShortcuts() {
       mainWindow.webContents.send('navigate', 'dashboard');
     }
   });
-}
-
-function startBackgroundServices() {
-  // Check reminders every minute
-  setInterval(() => {
-    if (mainWindow) {
-      mainWindow.webContents.send('check:reminders');
-    }
-  }, 60 * 1000); // Every 60 seconds
-  
-  // Auto-backup daily (if enabled)
-  // Implement based on settings
 }
 
 function createMainWindowIfNeeded() {

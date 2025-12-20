@@ -6,8 +6,7 @@
     "offlineMode": true,
     "syncEnabled": false,
     "licenseRequired": true,
-    "autoBackup": false,
-    "reminders": false
+    "autoBackup": false
   },
   "defaultSettings": {
     "theme": "light",

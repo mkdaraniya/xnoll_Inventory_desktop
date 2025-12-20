@@ -7,10 +7,9 @@ const PAGE_SIZE = 10;
 const emptyForm = {
   id: null,
   customer_id: "",
-  product_id: "",
-  service_name: "",
   booking_date: "",
   status: "pending",
+  items: [],
 };
 
 const BookingPage = () => {
@@ -37,6 +36,8 @@ const BookingPage = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
 
+  const emptyItem = { product_id: "", qty: 1, unit_price: 0 };
+  const [items, setItems] = useState([]);
   const customerInputRef = useRef(null);
 
   // Check for prefilled date from calendar
@@ -115,14 +116,6 @@ const BookingPage = () => {
     return m;
   }, [customers]);
 
-  const productMap = useMemo(() => {
-    const m = {};
-    products.forEach((p) => {
-      m[p.id] = p;
-    });
-    return m;
-  }, [products]);
-
   const invoiceMap = useMemo(() => {
     const m = {};
     invoices.forEach((inv) => {
@@ -137,15 +130,21 @@ const BookingPage = () => {
     () =>
       bookings.map((b) => {
         const cust = customerMap[b.customer_id];
-        const prod = productMap[b.product_id];
         return {
           ...b,
           customer_name: cust ? cust.name : `#${b.customer_id || "-"}`,
-          product_name: prod ? prod.name : b.service_name || "-",
         };
       }),
-    [bookings, customerMap, productMap]
+    [bookings, customerMap]
   );
+
+  const productMap = useMemo(() => {
+    const m = {};
+    products.forEach((p) => {
+      m[p.id] = p;
+    });
+    return m;
+  }, [products]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -159,13 +158,25 @@ const BookingPage = () => {
     // 1) Filter by term if present
     if (term) {
       data = data.filter((b) => {
-        const baseMatch =
+        // 1️⃣ basic booking fields
+        if (
           String(b.id || "").includes(term) ||
-          (b.customer_name || "").toLowerCase().includes(term) ||
-          (b.product_name || "").toLowerCase().includes(term);
+          (b.customer_name || "").toLowerCase().includes(term)
+        ) {
+          return true;
+        }
 
-        if (baseMatch) return true;
+        // 2️⃣ search in items → product names
+        if (Array.isArray(b.items) && b.items.length) {
+          for (const it of b.items) {
+            const productName = productMap[it.product_id]?.name;
+            if (productName && productName.toLowerCase().includes(term)) {
+              return true;
+            }
+          }
+        }
 
+        // 3️⃣ custom fields
         if (b.custom_fields && Array.isArray(customFields)) {
           for (const field of customFields) {
             if (!field.searchable) continue;
@@ -186,10 +197,18 @@ const BookingPage = () => {
     // 2) Sorting — always apply
     const getSortValue = (row, key) => {
       if (!key) return "";
-      if (row[key] !== undefined && row[key] !== null) return row[key];
-      if (row.custom_fields && row.custom_fields[key] !== undefined)
-        return row.custom_fields[key];
-      return "";
+
+      let value = "";
+
+      if (row[key] !== undefined && row[key] !== null) {
+        value = row[key];
+      } else if (row.custom_fields && row.custom_fields[key] !== undefined) {
+        value = row.custom_fields[key];
+      }
+
+      // normalize
+      if (value === null || value === undefined) return "";
+      return value;
     };
 
     data.sort((a, b) => {
@@ -233,15 +252,7 @@ const BookingPage = () => {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return dateStr.slice(0, 10); // YYYY-MM-DD
   };
 
   const getStatusBadge = (status) => {
@@ -274,9 +285,59 @@ const BookingPage = () => {
     setPage(p);
   };
 
+  const addItem = () => {
+    setItems((prev) => [...prev, { product_id: "", qty: 1, unit_price: 0 }]);
+  };
+
+  const updateItem = (index, key, value) => {
+    setItems((prev) => {
+      const copy = [...prev];
+
+      // if changing product, prevent duplicates
+      if (key === "product_id") {
+        const newPid = String(value);
+        // check other items for same product
+        const duplicateIndex = copy.findIndex(
+          (it, i) =>
+            i !== index && String(it.product_id) === newPid && newPid !== ""
+        );
+        if (duplicateIndex !== -1) {
+          alert(
+            "This product is already selected in another line. Please pick a different product."
+          );
+          return prev; // no change
+        }
+      }
+
+      // update the item
+      const existing = copy[index] || { product_id: "", qty: 1, unit_price: 0 };
+      copy[index] = { ...existing, [key]: value };
+
+      // when product selected, set unit price automatically
+      if (key === "product_id") {
+        const p = products.find((x) => String(x.id) === String(value));
+        if (p) copy[index].unit_price = Number(p.price || 0);
+        else copy[index].unit_price = 0;
+      }
+
+      // ensure qty stays a number (and at least 1)
+      if (key === "qty") {
+        const n = Number(value || 0);
+        copy[index].qty = n <= 0 ? 1 : n;
+      }
+
+      return copy;
+    });
+  };
+
+  const removeItem = (index) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // ---------- form / modal ----------
   const resetForm = () => {
     setForm(emptyForm);
+    setItems([]);
     setIsEditing(false);
     setCustomFieldValues({});
   };
@@ -296,17 +357,6 @@ const BookingPage = () => {
     setCustomFieldValues((prev) => ({ ...prev, [fieldName]: value }));
   };
 
-  const handleProductChange = (e) => {
-    const id = e.target.value;
-    setForm((prev) => ({ ...prev, product_id: id }));
-    if (id) {
-      const prod = products.find((p) => Number(p.id) === Number(id));
-      if (prod) {
-        setForm((prev) => ({ ...prev, service_name: prod.name }));
-      }
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!window.xnoll) return;
@@ -314,19 +364,45 @@ const BookingPage = () => {
     const payload = {
       id: form.id,
       customer_id: Number(form.customer_id) || null,
-      product_id: Number(form.product_id) || null,
-      service_name: form.service_name.trim(),
       booking_date: form.booking_date.trim(),
       status: form.status || "pending",
+      items: items.map((i, idx) => ({
+        product_id: Number(i.product_id),
+        qty: Number(i.qty || 1),
+        unit_price: Number(i.unit_price || 0),
+        line_total: Number(i.unit_price || 0) * Number(i.qty || 1),
+      })),
     };
 
-    if (
-      !payload.customer_id ||
-      !payload.service_name ||
-      !payload.booking_date
-    ) {
-      alert("Please fill all required fields.");
+    // Validation
+    if (!payload.customer_id) {
+      alert("Please select a customer.");
       return;
+    }
+    if (!payload.booking_date) {
+      alert("Please select a date & time.");
+      return;
+    }
+    if (!payload.items || payload.items.length === 0) {
+      alert("Please add at least one item.");
+      return;
+    }
+
+    // ensure no empty or duplicate product ids
+    const seen = new Set();
+    for (let idx = 0; idx < payload.items.length; idx++) {
+      const it = payload.items[idx];
+      if (!it.product_id) {
+        alert(`Please select a product for item ${idx + 1}.`);
+        return;
+      }
+      if (seen.has(it.product_id)) {
+        alert(
+          `Duplicate product selected for item ${idx + 1}. Please choose a different product.`
+        );
+        return;
+      }
+      seen.add(it.product_id);
     }
 
     setLoading(true);
@@ -361,35 +437,35 @@ const BookingPage = () => {
   };
 
   const handleEdit = async (b) => {
+    const full = await window.xnoll.getBookingsById(b.id);
     setForm({
-      id: b.id,
-      customer_id: b.customer_id || "",
-      product_id: b.product_id || "",
-      service_name: b.service_name || "",
-      booking_date: b.booking_date || "",
-      status: b.status || "pending",
+      id: full.id,
+      customer_id: full.customer_id || "",
+      booking_date: full.booking_date || "",
+      status: full.status || "pending",
     });
-    setCustomerSearch(
-      b.customer_name ? `${b.customer_name} (ID: ${b.customer_id})` : ""
+
+    setItems(
+      Array.isArray(full.items)
+        ? full.items.map((i) => ({
+            product_id: i.product_id,
+            qty: Number(i.qty || 1),
+            unit_price: Number(i.unit_price || 0),
+            line_total: Number(
+              i.line_total || Number(i.unit_price || 0) * Number(i.qty || 1)
+            ),
+          }))
+        : []
     );
+
+    setCustomerSearch(
+      full.customer_name
+        ? `${full.customer_name} (ID: ${full.customer_id})`
+        : ""
+    );
+
     setIsEditing(true);
     setShowModal(true);
-
-    // Load custom field values for this booking
-    if (customFields.length > 0) {
-      try {
-        const values = {};
-        for (const field of customFields) {
-          const res = await window.xnoll.customFieldValuesGet(field.id, b.id);
-          if (res && res.value !== undefined && res.value !== null) {
-            values[field.name] = res.value;
-          }
-        }
-        setCustomFieldValues(values);
-      } catch (error) {
-        console.error("Failed to load custom field values:", error);
-      }
-    }
   };
 
   const handleDelete = async (id) => {
@@ -415,8 +491,12 @@ const BookingPage = () => {
   const handleCreateInvoice = async () => {
     if (!window.xnoll || !selectedBooking) return;
 
-    const prod = productMap[selectedBooking.product_id];
-    const amount = prod ? Number(prod.price) || 0 : 0;
+    const amount = selectedBooking.items?.reduce(
+      (sum, i) =>
+        sum +
+        Number(i.line_total || Number(i.unit_price || 0) * Number(i.qty || 1)),
+      0
+    );
     const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
 
     if (!selectedBooking.customer_id) {
@@ -424,51 +504,57 @@ const BookingPage = () => {
       return;
     }
 
-    // Check for existing invoice
     const existingInvoices = invoiceMap[selectedBooking.customer_id] || [];
     const existing = existingInvoices.find(
-      (inv) => inv.total === amount && inv.invoice_date === today
+      (inv) => inv.booking_id === selectedBooking.id
     );
-
     if (existing) {
-      alert(
-        `Invoice already generated today (ID: ${existing.id}). Check Invoices module to view/print or update.`
-      );
+      alert(`Invoice already generated today (ID: ${existing.id}).`);
       setShowInvoiceModal(false);
-      await loadAll(); // Make sure UI is updated
+      await loadAll();
       return;
     }
 
     setLoading(true);
     try {
-      const newInvoice = await window.xnoll.invoicesCreate({
-        customer_id: selectedBooking.customer_id,
-        booking_id: selectedBooking.id,
-        total: amount,
-        invoice_date: today,
-        status: "unpaid",
-      });
-      // Update booking status to completed
+      // Build invoice payload including items
+      const invoicePayload = {
+        invoice: {
+          invoice_number: null, // will be generated or left null
+          customer_id: selectedBooking.customer_id,
+          booking_id: selectedBooking.id,
+          total: amount,
+          discount: 0,
+          invoice_date: today,
+          due_date: null,
+          status: "unpaid",
+          notes: "",
+        },
+        items: (selectedBooking.items || []).map((it) => ({
+          product_id: it.product_id || null,
+          description: productMap[it.product_id]?.name || "",
+          qty: Number(it.qty || 1),
+          unit_price: Number(it.unit_price || 0),
+          line_total: Number(
+            it.line_total || Number(it.unit_price || 0) * Number(it.qty || 1)
+          ),
+        })),
+      };
+
+      const newInvoice = await window.xnoll.invoicesCreate(invoicePayload);
+      // mark booking completed
       await window.xnoll.bookingsUpdate({
         id: selectedBooking.id,
+        booking_date: selectedBooking.booking_date,
         status: "completed",
       });
-      await loadAll(); // Always refresh state so button disables instantly
-      alert(
-        "Invoice created and booking marked as completed. Check Invoices module to view/print."
-      );
+      await loadAll();
+      alert("Invoice created and booking marked as completed.");
       setShowInvoiceModal(false);
     } catch (err) {
       console.error("Error generating invoice:", err);
-      if (
-        (err && err.message && err.message.includes("UNIQUE")) ||
-        (err && err.toString().includes("duplicate"))
-      ) {
-        alert("Invoice already generated for this booking today.");
-      } else {
-        alert("Failed to generate invoice. Please check data and try again.");
-      }
-      await loadAll(); // Refresh state to keep UI consistent
+      alert("Failed to generate invoice. See console for details.");
+      await loadAll();
     } finally {
       setLoading(false);
     }
@@ -529,11 +615,9 @@ const BookingPage = () => {
             <button
               className="btn btn-sm btn-primary"
               onClick={openNewModal}
-              disabled={loading || !customers.length || !products.length}
+              disabled={loading}
               title={
-                !customers.length || !products.length
-                  ? "Add customers and products first"
-                  : ""
+                !customers.length ? "Add customers and products first" : ""
               }
             >
               + New Booking
@@ -561,12 +645,7 @@ const BookingPage = () => {
                   >
                     Customer {sortIcon("customer_name")}
                   </th>
-                  <th
-                    style={{ cursor: "pointer" }}
-                    onClick={() => handleSort("product_name")}
-                  >
-                    Service {sortIcon("product_name")}
-                  </th>
+
                   <th
                     style={{ width: "170px", cursor: "pointer" }}
                     onClick={() => handleSort("booking_date")}
@@ -599,10 +678,9 @@ const BookingPage = () => {
               <tbody>
                 {pageData.map((b) => {
                   const hasInvoiceToday = invoiceMap[b.customer_id]?.some(
-                    (inv) =>
-                      inv.total === (productMap[b.product_id]?.price || 0) &&
-                      inv.invoice_date === new Date().toISOString().slice(0, 10)
+                    (inv) => inv.booking_id === b.id
                   );
+
                   return (
                     <tr key={b.id}>
                       <td>{b.id}</td>
@@ -616,16 +694,7 @@ const BookingPage = () => {
                       >
                         {b.customer_name}
                       </td>
-                      <td
-                        style={{
-                          maxWidth: "200px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {b.product_name}
-                      </td>
+                      <td className="small text-muted">—</td>
                       <td>{formatDate(b.booking_date)}</td>
                       <td>{getStatusBadge(b.status)}</td>
                       {(Array.isArray(customFields)
@@ -840,25 +909,56 @@ const BookingPage = () => {
                     </div>
 
                     <div className="mb-2">
-                      <label className="form-label mb-0 small">
-                        Service / Product *
-                      </label>
-                      <select
-                        className="form-select form-select-sm"
-                        name="product_id"
-                        value={form.product_id}
-                        onChange={handleProductChange}
-                        required
-                        disabled={loading}
+                      <label className="form-label small">Items *</label>
+
+                      {items.map((it, idx) => (
+                        <div key={idx} className="d-flex gap-1 mb-1">
+                          <select
+                            className="form-select form-select-sm"
+                            value={it.product_id}
+                            onChange={(e) =>
+                              updateItem(idx, "product_id", e.target.value)
+                            }
+                          >
+                            <option value="">Select product</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} - ₹{p.price}
+                              </option>
+                            ))}
+                          </select>
+
+                          <input
+                            type="number"
+                            className="form-control form-control-sm"
+                            value={it.qty}
+                            min="1"
+                            onChange={(e) =>
+                              updateItem(idx, "qty", e.target.value)
+                            }
+                            readOnly
+                            style={{ width: 70 }}
+                          />
+
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => removeItem(idx)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary mt-1"
+                        onClick={addItem}
                       >
-                        <option value="">Select service</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.price ? `- ₹${p.price}` : ""}
-                          </option>
-                        ))}
-                      </select>
+                        + Add Item
+                      </button>
                     </div>
+
                     <div className="mb-2">
                       <label className="form-label mb-0 small">
                         Date &amp; Time *
@@ -963,14 +1063,12 @@ const BookingPage = () => {
                   <p>
                     <strong>Customer:</strong> {selectedBooking.customer_name}
                   </p>
-                  <p>
-                    <strong>Service:</strong> {selectedBooking.product_name}
-                  </p>
+
                   <p>
                     <strong>Amount:</strong> ₹
-                    {(
-                      productMap[selectedBooking.product_id]?.price || 0
-                    ).toFixed(2)}
+                    {selectedBooking.items
+                      ?.reduce((sum, i) => sum + Number(i.line_total || 0), 0)
+                      .toFixed(2)}
                   </p>
                   <p className="small text-muted">
                     This will mark the booking as completed.

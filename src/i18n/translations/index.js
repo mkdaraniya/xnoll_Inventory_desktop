@@ -178,7 +178,6 @@ const en = {
     language: 'Language',
     appearance: 'Appearance',
     customFields: 'Custom Fields',
-    reminders: 'Reminders',
     backup: 'Backup & Restore',
     license: 'License',
     about: 'About',

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("xnoll", {
   bookingsCreate: (payload) => ipcRenderer.invoke("bookings:create", payload),
   bookingsUpdate: (payload) => ipcRenderer.invoke("bookings:update", payload),
   bookingsDelete: (id) => ipcRenderer.invoke("bookings:delete", id),
+  getBookingsById: (id) => ipcRenderer.invoke("bookings:getById", id),
 
   // Invoices API
   invoicesList: () => ipcRenderer.invoke("invoices:list"),
@@ -72,13 +73,6 @@ contextBridge.exposeInMainWorld("xnoll", {
   notesCreate: (payload) => ipcRenderer.invoke("notes:create", payload),
   notesUpdate: (payload) => ipcRenderer.invoke("notes:update", payload),
   notesDelete: (id) => ipcRenderer.invoke("notes:delete", id),
-
-  // Reminders API
-  remindersList: (bookingId) => ipcRenderer.invoke("reminders:list", bookingId),
-  remindersCreate: (payload) => ipcRenderer.invoke("reminders:create", payload),
-  remindersUpdate: (payload) => ipcRenderer.invoke("reminders:update", payload),
-  remindersDelete: (id) => ipcRenderer.invoke("reminders:delete", id),
-  remindersCheck: () => ipcRenderer.invoke("reminders:check"), // Check for due reminders
 
   // Search API
   searchGlobal: (query) => ipcRenderer.invoke("search:global", query),
