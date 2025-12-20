@@ -4,9 +4,7 @@
   "author": "Xnoll Team",
   "features": {
     "offlineMode": true,
-    "syncEnabled": false,
-    "licenseRequired": true,
-    "autoBackup": false
+    "syncEnabled": false
   },
   "defaultSettings": {
     "theme": "light",

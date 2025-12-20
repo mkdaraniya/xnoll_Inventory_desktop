@@ -1,5 +1,5 @@
-const { BrowserWindow } = require('electron');
-const path = require('path');
+const { BrowserWindow } = require("electron");
+const path = require("path");
 
 function createMainWindow(isDev) {
   const mainWindow = new BrowserWindow({
@@ -7,19 +7,21 @@ function createMainWindow(isDev) {
     height: 800,
     minWidth: 1024,
     minHeight: 640,
-    title: 'Xnoll Booking Desktop',
+    title: "Xnoll Booking Desktop",
+    icon: path.join(__dirname, "../../build/icon.png"),
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
+    const prodPath = path.join(__dirname, "../../dist/renderer/index.html");
+    mainWindow.loadFile(prodPath);
   }
 
   return mainWindow;

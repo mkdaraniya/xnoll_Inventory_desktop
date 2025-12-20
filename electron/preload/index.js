@@ -45,13 +45,6 @@ contextBridge.exposeInMainWorld("xnoll", {
   invoicesDelete: (id) => ipcRenderer.invoke("invoices:delete", id),
   invoicesGetById: (id) => ipcRenderer.invoke("invoices:getById", id),
 
-  // License API
-  licenseGetMachineId: () => ipcRenderer.invoke("license:getMachineId"),
-  licenseActivate: (key) => ipcRenderer.invoke("license:activate", key),
-  licenseCheck: () => ipcRenderer.invoke("license:check"),
-  licenseDeactivate: () => ipcRenderer.invoke("license:deactivate"),
-  licenseGenerate: (params) => ipcRenderer.invoke("license:generate", params), // Demo only
-
   // Settings API
   settingsGet: () => ipcRenderer.invoke("settings:get"),
   settingsSave: (payload) => ipcRenderer.invoke("settings:save", payload),
@@ -78,12 +71,6 @@ contextBridge.exposeInMainWorld("xnoll", {
   searchGlobal: (query) => ipcRenderer.invoke("search:global", query),
   searchModule: (module, query) =>
     ipcRenderer.invoke("search:module", { module, query }),
-
-  // Backup & Restore API
-  backupCreate: (location) => ipcRenderer.invoke("backup:create", location),
-  backupRestore: (filePath) => ipcRenderer.invoke("backup:restore", filePath),
-  backupList: () => ipcRenderer.invoke("backup:list"),
-  backupExport: () => ipcRenderer.invoke("backup:export"),
 
   // Reports API
   reportsGenerate: (type, params) =>

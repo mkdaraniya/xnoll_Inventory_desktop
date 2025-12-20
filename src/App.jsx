@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { I18nProvider } from "./i18n/i18nContext";
-import LicenseActivation from "./pages/License/Activation";
 import TopBar from "./components/layout/TopBar.jsx";
 import Sidebar from "./components/layout/Sidebar.jsx";
 
@@ -60,80 +59,6 @@ const AppContent = () => {
 };
 
 const App = () => {
-  const [licenseValid, setLicenseValid] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    checkLicense();
-  }, []);
-
-  const checkLicense = async () => {
-    // Skip license check for now - enable after full development
-    console.log('License check disabled for development');
-    setLicenseValid(true);
-    setChecking(false);
-    return;
-
-    // Original license check code (commented out for now)
-    /*
-    const isDev = import.meta.env.MODE === 'development';
-    
-    if (isDev) {
-      console.log('Development mode: Skipping license check');
-      setLicenseValid(true);
-      setChecking(false);
-      return;
-    }
-
-    if (!window.xnoll) {
-      console.error('Xnoll API not available');
-      setLicenseValid(false);
-      setChecking(false);
-      return;
-    }
-
-    try {
-      const result = await window.xnoll.licenseCheck();
-      setLicenseValid(result.valid);
-      setChecking(false);
-
-      if (!result.valid) {
-        console.log("License invalid:", result.error);
-      } else {
-        console.log("License valid. Days remaining:", result.daysRemaining);
-      }
-    } catch (error) {
-      console.error('License check failed:', error);
-      setLicenseValid(false);
-      setChecking(false);
-    }
-    */
-  };
-
-  const handleLicenseActivated = () => {
-    setLicenseValid(true);
-  };
-
-  if (checking) {
-    return (
-      <I18nProvider>
-        <div className="min-vh-100 d-flex align-items-center justify-content-center">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-        </div>
-      </I18nProvider>
-    );
-  }
-
-  if (!licenseValid) {
-    return (
-      <I18nProvider>
-        <LicenseActivation onActivated={handleLicenseActivated} />
-      </I18nProvider>
-    );
-  }
-
   return (
     <I18nProvider>
       <AppContent />
