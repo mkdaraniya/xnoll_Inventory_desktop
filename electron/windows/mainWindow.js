@@ -8,7 +8,7 @@ function createMainWindow(isDev) {
     minWidth: 1024,
     minHeight: 640,
     title: "Xnoll Booking Desktop",
-    icon: path.join(__dirname, "../../build/icon.png"),
+    icon: path.join(__dirname, "../../build/icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
