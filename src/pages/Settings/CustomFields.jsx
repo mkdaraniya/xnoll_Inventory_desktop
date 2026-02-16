@@ -6,7 +6,8 @@ import SearchBar from '../../components/common/SearchBar';
 const modules = [
   { value: 'customers', label: 'Customers' },
   { value: 'products', label: 'Products' },
-  { value: 'bookings', label: 'Bookings' },
+  { value: 'suppliers', label: 'Suppliers' },
+  { value: 'warehouses', label: 'Warehouses' },
 ];
 
 const fieldTypes = [
@@ -387,4 +388,3 @@ const CustomFields = () => {
 };
 
 export default CustomFields;
-

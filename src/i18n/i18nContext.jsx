@@ -15,14 +15,12 @@ export const I18nProvider = ({ children }) => {
   const [language, setLanguage] = useState('en');
 
   useEffect(() => {
-    // Load saved language from localStorage
-    const savedLang = localStorage.getItem('app_language');
-    if (savedLang && translations[savedLang]) {
-      setLanguage(savedLang);
-    }
+    // Keep a single-language UI for the inventory edition.
+    setLanguage('en');
   }, []);
 
   const changeLanguage = (lang) => {
+    if (lang !== 'en') return;
     if (translations[lang]) {
       setLanguage(lang);
       localStorage.setItem('app_language', lang);
@@ -65,12 +63,7 @@ export const I18nProvider = ({ children }) => {
   };
 
   const availableLanguages = [
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
-    { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી' },
-    { code: 'mr', name: 'Marathi', nativeName: 'मराठी' },
-    { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
-    { code: 'te', name: 'Telugu', nativeName: 'తెలుగు' }
+    { code: 'en', name: 'English', nativeName: 'English' }
   ];
 
   return (

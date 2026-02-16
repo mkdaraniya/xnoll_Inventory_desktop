@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import General from './General';
 import Company from './Company';
+import Tax from './Tax';
 import Language from './Language';
 import CustomFields from './CustomFields';
 import CodeGenerator from './CodeGenerator';
@@ -8,6 +9,7 @@ import CodeGenerator from './CodeGenerator';
 const tabs = [
   { key: 'general', label: 'General' },
   { key: 'company', label: 'Company' },
+  { key: 'tax', label: 'Tax' },
   // { key: 'language', label: 'Language' },
   { key: 'custom', label: 'Custom Fields' },
   // { key: 'code-generator', label: 'Code Generator' },
@@ -22,6 +24,8 @@ const Settings = () => {
         return <General />;
       case 'company':
         return <Company />;
+      case 'tax':
+        return <Tax />;
       // case 'language':
       //   return <Language />;
       case 'custom':

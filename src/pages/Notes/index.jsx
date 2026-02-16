@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import SearchBar from '../../components/common/SearchBar';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import Pagination from '../../components/common/Pagination';
+import { ensureSuccess, notifyError } from '../../utils/feedback';
+import { validateRequiredFields } from '../../utils/validation';
 
 const emptyForm = {
   id: null,
@@ -19,12 +22,30 @@ const NotesPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+  const [sortKey, setSortKey] = useState('updated_at');
+  const [sortDir, setSortDir] = useState('desc');
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const loadNotes = async () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      const rows = await window.xnoll.notesList();
-      setNotes(rows || []);
+      const res = await window.xnoll.notesQuery({
+        page,
+        pageSize,
+        search,
+        sortKey,
+        sortDir,
+      });
+      ensureSuccess(res, 'Unable to load notes.');
+      setNotes(res.rows || []);
+      setTotal(Number(res.total || 0));
+      setTotalPages(Number(res.totalPages || 1));
+    } catch (error) {
+      notifyError(error, 'Unable to load notes.');
     } finally {
       setLoading(false);
     }
@@ -32,46 +53,34 @@ const NotesPage = () => {
 
   useEffect(() => {
     loadNotes();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    let data = [...notes];
-    if (term) {
-      data = data.filter(
-        (n) =>
-          (n.title || '').toLowerCase().includes(term) ||
-          (n.content || '').toLowerCase().includes(term) ||
-          (n.tags || '').toLowerCase().includes(term)
-      );
-    }
-        data.sort((a, b) => Number(b.is_pinned || 0) - Number(a.is_pinned || 0));
-    return data;
-  }, [notes, search]);
+  }, [page, pageSize, search, sortKey, sortDir]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!window.xnoll) return;
-        if (!form.title.trim()) return;
-        setLoading(true);
-        try {
-          const payload = {
-            ...form,
-            is_pinned: form.is_pinned ? 1 : 0,
-            tags: form.tags.trim(),
-            content: form.content.trim(),
-          };
-      if (isEditing && form.id != null) {
-        await window.xnoll.notesUpdate(payload);
-      } else {
-        await window.xnoll.notesCreate(payload);
-      }
+
+    const validationError = validateRequiredFields({ title: form.title }, { title: 'Title' });
+    if (validationError) return notifyError(validationError);
+
+    setLoading(true);
+    try {
+      const payload = {
+        ...form,
+        is_pinned: form.is_pinned ? 1 : 0,
+        tags: form.tags.trim(),
+        content: form.content.trim(),
+      };
+      const result = isEditing && form.id != null
+        ? await window.xnoll.notesUpdate(payload)
+        : await window.xnoll.notesCreate(payload);
+      ensureSuccess(result, 'Unable to save note.');
+
       await loadNotes();
       setShowModal(false);
       setForm(emptyForm);
       setIsEditing(false);
     } catch (err) {
-      console.error('Save note failed', err);
+      notifyError(err, 'Unable to save note.');
     } finally {
       setLoading(false);
     }
@@ -82,21 +91,23 @@ const NotesPage = () => {
     if (!window.confirm('Delete this note?')) return;
     setLoading(true);
     try {
-      await window.xnoll.notesDelete(id);
+      ensureSuccess(await window.xnoll.notesDelete(id), 'Unable to delete note.');
       await loadNotes();
+    } catch (error) {
+      notifyError(error, 'Unable to delete note.');
     } finally {
       setLoading(false);
     }
   };
 
   const openEdit = (note) => {
-        setForm({
-          id: note.id,
-          title: note.title || '',
-          content: note.content || '',
-          tags: note.tags || '',
-          is_pinned: Number(note.is_pinned) === 1,
-        });
+    setForm({
+      id: note.id,
+      title: note.title || '',
+      content: note.content || '',
+      tags: note.tags || '',
+      is_pinned: Number(note.is_pinned) === 1,
+    });
     setIsEditing(true);
     setShowModal(true);
   };
@@ -107,6 +118,10 @@ const NotesPage = () => {
     setShowModal(true);
   };
 
+  const sortedView = useMemo(() => {
+    return [...notes].sort((a, b) => Number(b.is_pinned || 0) - Number(a.is_pinned || 0));
+  }, [notes]);
+
   return (
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -115,7 +130,7 @@ const NotesPage = () => {
           <small className="text-muted">Fast jotting with tags & pin</small>
         </div>
         <div className="d-flex gap-2 flex-wrap">
-          <SearchBar value={search} onChange={setSearch} size="sm" />
+          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} size="sm" />
           <Button variant="primary" size="sm" onClick={openCreate}>
             + New Note
           </Button>
@@ -123,7 +138,7 @@ const NotesPage = () => {
       </div>
 
       <div className="row g-3">
-        {filtered.map((note) => (
+        {sortedView.map((note) => (
           <div className="col-md-4" key={note.id}>
             <div className="card shadow-sm h-100">
               <div className="card-body d-flex flex-column">
@@ -148,18 +163,8 @@ const NotesPage = () => {
                     )}
                   </div>
                   <div className="btn-group btn-group-sm">
-                    <button
-                      className="btn btn-outline-primary"
-                      onClick={() => openEdit(note)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-outline-danger"
-                      onClick={() => handleDelete(note.id)}
-                    >
-                      Del
-                    </button>
+                    <button className="btn btn-outline-primary" onClick={() => openEdit(note)}>Edit</button>
+                    <button className="btn btn-outline-danger" onClick={() => handleDelete(note.id)}>Del</button>
                   </div>
                 </div>
                 <p className="mt-2 mb-0 small text-muted" style={{ whiteSpace: 'pre-line' }}>
@@ -170,60 +175,41 @@ const NotesPage = () => {
           </div>
         ))}
 
-        {!filtered.length && !loading && (
+        {!sortedView.length && !loading && (
           <div className="col-12 text-center text-muted py-4">No notes yet.</div>
         )}
       </div>
+
+      <Pagination
+        currentPage={Math.min(page, totalPages || 1)}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={total}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+      />
 
       <Modal show={showModal} onClose={() => setShowModal(false)} title={isEditing ? 'Edit Note' : 'New Note'}>
         <form onSubmit={handleSubmit}>
           <div className="mb-2">
             <label className="form-label small mb-0">Title *</label>
-            <input
-              className="form-control form-control-sm"
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              required
-              autoFocus
-            />
+            <input className="form-control form-control-sm" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required autoFocus />
           </div>
           <div className="mb-2">
             <label className="form-label small mb-0">Content</label>
-            <textarea
-              className="form-control form-control-sm"
-              rows="4"
-              value={form.content}
-              onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-            />
+            <textarea className="form-control form-control-sm" rows="4" value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} />
           </div>
           <div className="mb-2">
             <label className="form-label small mb-0">Tags (comma separated)</label>
-            <input
-              className="form-control form-control-sm"
-              value={form.tags}
-              onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
-              placeholder="e.g. followup,priority"
-            />
+            <input className="form-control form-control-sm" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="e.g. followup,priority" />
           </div>
-              <div className="form-check mb-3">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="notePin"
-                  checked={!!form.is_pinned}
-                  onChange={(e) => setForm((f) => ({ ...f, is_pinned: e.target.checked }))}
-                />
-                <label className="form-check-label" htmlFor="notePin">
-                  Pin this note
-                </label>
-              </div>
+          <div className="form-check mb-3">
+            <input className="form-check-input" type="checkbox" id="notePin" checked={!!form.is_pinned} onChange={(e) => setForm((f) => ({ ...f, is_pinned: e.target.checked }))} />
+            <label className="form-check-label" htmlFor="notePin">Pin this note</label>
+          </div>
           <div className="d-flex justify-content-end gap-2">
-            <Button variant="outline-secondary" type="button" onClick={() => setShowModal(false)} size="sm">
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" size="sm" disabled={loading}>
-              {loading ? 'Saving...' : 'Save'}
-            </Button>
+            <Button variant="outline-secondary" type="button" onClick={() => setShowModal(false)} size="sm">Cancel</Button>
+            <Button variant="primary" type="submit" size="sm" disabled={loading}>{loading ? 'Saving...' : 'Save'}</Button>
           </div>
         </form>
       </Modal>
@@ -232,4 +218,3 @@ const NotesPage = () => {
 };
 
 export default NotesPage;
-

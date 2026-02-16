@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
 import Pagination from "../../components/common/Pagination";
 import { formatCurrency } from "../../utils/format";
+import { ensureSuccess, notifyError } from "../../utils/feedback";
+import { isNonNegativeNumber, validateRequiredFields } from "../../utils/validation";
 
 const emptyForm = { id: null, sku: "", name: "", unit: "", price: "" };
 const PAGE_SIZE = 10;
@@ -24,6 +26,8 @@ const Products = () => {
   const [pageSize, setPageSize] = useState(10);
   const [sortKey, setSortKey] = useState("id");
   const [sortDir, setSortDir] = useState("desc");
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
 
@@ -31,19 +35,29 @@ const Products = () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      // temporary: direct select; later replace by window.xnoll.productsList()
-      const [rows, fields, settingsRes] = await Promise.all([
-        window.xnoll.productsList(),
+      const [res, fields, settingsRes] = await Promise.all([
+        window.xnoll.productsQuery({
+          page,
+          pageSize,
+          search,
+          sortKey,
+          sortDir,
+        }),
         window.xnoll.customFieldsList("products"),
         window.xnoll.settingsGet(),
       ]);
 
-      setProducts(rows || []);
+      ensureSuccess(res, "Unable to load products.");
+      setProducts(res.rows || []);
+      setTotal(Number(res.total || 0));
+      setTotalPages(Number(res.totalPages || 1));
       setCustomFields(fields || []);
       if (settingsRes?.success && settingsRes.settings) {
         setSettings((prev) => ({ ...prev, ...settingsRes.settings }));
         setCurrency(settingsRes.settings.currency || "INR");
       }
+    } catch (error) {
+      notifyError(error, "Unable to load products.");
     } finally {
       setLoading(false);
     }
@@ -51,86 +65,10 @@ const Products = () => {
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [page, pageSize, search, sortKey, sortDir]);
 
-  // ---------- filter + sort + paginate ----------
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    let data = [...products];
-
-    // 1) Filter by term if present
-    if (term) {
-      data = data.filter((p) => {
-        const baseMatch =
-          (p.name || "").toLowerCase().includes(term) ||
-          (p.sku || "").toLowerCase().includes(term);
-
-        if (baseMatch) return true;
-
-        if (p.custom_fields && Array.isArray(customFields)) {
-          for (const field of customFields) {
-            if (!field.searchable) continue;
-            const value = p.custom_fields[field.name];
-            if (
-              value !== undefined &&
-              String(value).toLowerCase().includes(term)
-            ) {
-              return true;
-            }
-          }
-        }
-
-        return false;
-      });
-    }
-
-    // 2) Sorting — always apply
-    const getSortValue = (row, key) => {
-      if (!key) return "";
-      if (row[key] !== undefined && row[key] !== null) return row[key];
-      if (row.custom_fields && row.custom_fields[key] !== undefined)
-        return row.custom_fields[key];
-      return "";
-    };
-
-    data.sort((a, b) => {
-      let va = getSortValue(a, sortKey);
-      let vb = getSortValue(b, sortKey);
-
-      // numeric compare when both look numeric
-      const na = parseFloat(va);
-      const nb = parseFloat(vb);
-      const bothNumbers =
-        String(va).trim() !== "" &&
-        String(vb).trim() !== "" &&
-        !Number.isNaN(na) &&
-        !Number.isNaN(nb);
-
-      if (bothNumbers) {
-        if (na < nb) return sortDir === "asc" ? -1 : 1;
-        if (na > nb) return sortDir === "asc" ? 1 : -1;
-        return 0;
-      }
-
-      va = String(va).toLowerCase();
-      vb = String(vb).toLowerCase();
-
-      if (va < vb) return sortDir === "asc" ? -1 : 1;
-      if (va > vb) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-
-    return data;
-  }, [products, customFields, search, sortKey, sortDir]);
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(page, totalPages);
-
-  const pageData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize]);
+  const currentPage = Math.min(page, totalPages || 1);
+  const pageData = useMemo(() => products, [products]);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -139,6 +77,7 @@ const Products = () => {
       setSortKey(key);
       setSortDir("asc");
     }
+    setPage(1);
   };
 
   const sortIcon = (key) => {
@@ -202,16 +141,18 @@ const Products = () => {
       price: parseFloat(form.price || "0") || 0,
     };
 
-    if (!payload.name) return;
+    const requiredError = validateRequiredFields({ name: payload.name }, { name: "Name" });
+    if (requiredError) return notifyError(requiredError);
+    if (!isNonNegativeNumber(payload.price)) return notifyError("Price cannot be negative.");
 
     setLoading(true);
     try {
       let productId;
       if (isEditing && payload.id != null) {
-        await window.xnoll.productsUpdate(payload);
+        ensureSuccess(await window.xnoll.productsUpdate(payload), "Unable to update product.");
         productId = payload.id;
       } else {
-        const result = await window.xnoll.productsCreate(payload);
+        const result = ensureSuccess(await window.xnoll.productsCreate(payload), "Unable to create product.");
         productId = result.id;
       }
 
@@ -233,7 +174,7 @@ const Products = () => {
       setShowModal(false);
       await loadProducts();
     } catch (error) {
-      console.error("Error saving product:", error);
+      notifyError(error, "Unable to save product.");
     } finally {
       setLoading(false);
     }
@@ -277,10 +218,10 @@ const Products = () => {
 
     setLoading(true);
     try {
-      await window.xnoll.productsDelete(id);
+      ensureSuccess(await window.xnoll.productsDelete(id), "Unable to delete product.");
       await loadProducts();
     } catch (error) {
-      console.error("Error deleting product:", error);
+      notifyError(error, "Unable to delete product.");
     } finally {
       setLoading(false);
     }
@@ -438,7 +379,7 @@ const Products = () => {
           />
 
           <small className="text-muted d-block mt-2">
-            Products/services stored locally in SQLite and used later in Booking
+            Product master stored locally in SQLite and used across inventory flows
             & Invoices.
           </small>
         </div>

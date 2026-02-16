@@ -6,16 +6,14 @@ CREATE TABLE IF NOT EXISTS settings (
   currency TEXT DEFAULT 'INR',
   auto_generate_sku INTEGER DEFAULT 1,
   sku_prefix TEXT DEFAULT 'SKU',
-  enable_reminders INTEGER DEFAULT 0,
-  reminder_lead_minutes INTEGER DEFAULT 30,
   language TEXT DEFAULT 'en',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default settings
-INSERT OR IGNORE INTO settings (id, company_name, currency, auto_generate_sku, sku_prefix, enable_reminders, reminder_lead_minutes, language)
-VALUES (1, 'My Company', 'INR', 1, 'SKU', 0, 30, 'en');
+INSERT OR IGNORE INTO settings (id, company_name, currency, auto_generate_sku, sku_prefix, language)
+VALUES (1, 'My Company', 'INR', 1, 'SKU', 'en');
 
 CREATE TABLE IF NOT EXISTS customers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,45 +46,10 @@ CREATE INDEX idx_products_sku ON products(sku);
 CREATE INDEX idx_products_name ON products(name);
 CREATE INDEX idx_products_category ON products(category);
 
-CREATE TABLE IF NOT EXISTS bookings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_id INTEGER,
-  service_name TEXT,
-  booking_date TEXT NOT NULL,
-  status TEXT DEFAULT 'pending',
-  discount REAL DEFAULT 0,
-  notes TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_bookings_customer ON bookings(customer_id);
-CREATE INDEX idx_bookings_date ON bookings(booking_date);
-CREATE INDEX idx_bookings_status ON bookings(status);
-
-CREATE TABLE IF NOT EXISTS booking_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL,
-  product_id INTEGER NOT NULL,
-  qty REAL DEFAULT 1,
-  unit_price REAL DEFAULT 0,
-  line_total REAL DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
-  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_booking_items_booking ON booking_items(booking_id);
-CREATE INDEX idx_booking_items_product ON booking_items(product_id);
-
-
 CREATE TABLE IF NOT EXISTS invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   invoice_number TEXT UNIQUE,
   customer_id INTEGER,
-  booking_id INTEGER,
   total REAL DEFAULT 0,
   discount REAL DEFAULT 0,
   invoice_date TEXT NOT NULL,
@@ -95,8 +58,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
-  FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE SET NULL
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_invoices_customer ON invoices(customer_id);

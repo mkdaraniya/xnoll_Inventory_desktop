@@ -1,7 +1,7 @@
 {
-  "name": "xnoll-booking",
+  "name": "xnoll-inventory",
   "version": "1.0.0",
-  "description": "Offline-first booking and appointment management system",
+  "description": "Offline-first inventory management system",
   "author": "Xnoll Team",
   "license": "Commercial",
   "main": "electron/main.js",
@@ -43,8 +43,8 @@
     "wait-on": "^8.0.0"
   },
   "build": {
-    "appId": "com.xnoll.desktop",
-    "productName": "Xnoll Desktop",
+    "appId": "com.xnoll.inventory",
+    "productName": "Xnoll Inventory Desktop",
     "directories": {
       "output": "dist/build",
       "buildResources": "build"
@@ -74,7 +74,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Xnoll Desktop",
+      "shortcutName": "Xnoll Inventory Desktop",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
@@ -103,11 +103,10 @@
     }
   },
   "keywords": [
-    "booking",
-    "appointment",
-    "scheduling",
-    "salon",
-    "spa",
+    "inventory",
+    "stock",
+    "warehouse",
+    "procurement",
     "offline",
     "desktop"
   ]

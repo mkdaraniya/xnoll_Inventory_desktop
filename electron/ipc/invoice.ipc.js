@@ -12,6 +12,14 @@ ipcMain.handle('invoices:list', async () => {
   }
 });
 
+ipcMain.handle('invoices:query', async (_event, payload) => {
+  try {
+    return { success: true, ...db.queryInvoices(payload || {}) };
+  } catch (err) {
+    return { success: false, error: err.message, rows: [], total: 0, page: 1, pageSize: 10, totalPages: 1 };
+  }
+});
+
 ipcMain.handle('invoices:create', async (_event, payload) => {
   try {
     return db.createInvoiceWithItems(payload);

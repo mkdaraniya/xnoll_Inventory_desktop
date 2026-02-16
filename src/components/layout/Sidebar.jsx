@@ -11,8 +11,8 @@ const Sidebar = ({ activePage, setActivePage }) => {
   return (
     <aside className="sidebar border-end bg-white">
       <div className="p-3 border-bottom">
-        <h6 className="mb-0 text-primary fw-bold">Xnoll Menu</h6>
-        <small className="text-muted">Quick access</small>
+        <h6 className="mb-0 text-primary fw-bold">Inventory Menu</h6>
+        <small className="text-muted">Operations</small>
       </div>
       <div className="list-group list-group-flush">
         <button
@@ -22,28 +22,40 @@ const Sidebar = ({ activePage, setActivePage }) => {
           📊 {t('nav.dashboard')}
         </button>
         <button
-          className={itemClass("calendar")}
-          onClick={() => setActivePage("calendar")}
+          className={itemClass("products")}
+          onClick={() => setActivePage("products")}
         >
-          🗓️ {t('nav.calendar')}
+          📦 {t('nav.products')}
         </button>
         <button
-          className={itemClass("booking")}
-          onClick={() => setActivePage("booking")}
+          className={itemClass("suppliers")}
+          onClick={() => setActivePage("suppliers")}
         >
-          📅 {t('nav.bookings')}
+          🚚 Suppliers
+        </button>
+        <button
+          className={itemClass("purchases")}
+          onClick={() => setActivePage("purchases")}
+        >
+          🧾 Purchase Orders
+        </button>
+        <button
+          className={itemClass("stock")}
+          onClick={() => setActivePage("stock")}
+        >
+          📦 Stock Operations
+        </button>
+        <button
+          className={itemClass("warehouses")}
+          onClick={() => setActivePage("warehouses")}
+        >
+          🏬 Warehouses
         </button>
         <button
           className={itemClass("customers")}
           onClick={() => setActivePage("customers")}
         >
           👥 {t('nav.customers')}
-        </button>
-        <button
-          className={itemClass("products")}
-          onClick={() => setActivePage("products")}
-        >
-          📦 {t('nav.products')}
         </button>
         <button
           className={itemClass("invoices")}

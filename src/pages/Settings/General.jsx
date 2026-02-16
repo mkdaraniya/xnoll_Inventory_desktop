@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Button from '../../components/common/Button';
+import { notifyError } from '../../utils/feedback';
 
 const GeneralSettings = () => {
   const [form, setForm] = useState({
@@ -18,11 +19,13 @@ const GeneralSettings = () => {
       if (result?.success && result.settings) {
         setForm((prev) => ({
           ...prev,
-          ...result.settings,
+          auto_generate_sku: result.settings.auto_generate_sku ? 1 : 0,
+          sku_prefix: result.settings.sku_prefix || 'SKU',
+          currency: result.settings.currency || 'INR',
         }));
       }
     } catch (err) {
-      console.error('Load settings failed', err);
+      notifyError(err, 'Unable to load settings.');
     } finally {
       setLoading(false);
     }
@@ -50,6 +53,7 @@ const GeneralSettings = () => {
       if (res?.success) setMessage('Saved');
       else setMessage(res?.error || 'Save failed');
     } catch (err) {
+      notifyError(err, 'Unable to save settings.');
       setMessage('Save failed');
     } finally {
       setLoading(false);
@@ -70,7 +74,7 @@ const GeneralSettings = () => {
             onChange={handleChange}
           />
           <label className="form-check-label" htmlFor="autoSku">
-            Auto generate SKU for products/services
+            Auto generate SKU
           </label>
         </div>
         <div className="mb-3">
@@ -82,7 +86,6 @@ const GeneralSettings = () => {
             onChange={handleChange}
             placeholder="SKU"
           />
-          <small className="text-muted">Used when auto generating SKUs.</small>
         </div>
         <div className="mb-3">
           <label className="form-label small mb-0">Currency</label>
@@ -100,7 +103,6 @@ const GeneralSettings = () => {
             <option value="AUD">AUD (A$)</option>
             <option value="CAD">CAD (C$)</option>
           </select>
-          <small className="text-muted">Default currency for the application.</small>
         </div>
         {message && <div className="alert alert-info py-2">{message}</div>}
         <div className="d-flex justify-content-end">
@@ -114,4 +116,3 @@ const GeneralSettings = () => {
 };
 
 export default GeneralSettings;
-

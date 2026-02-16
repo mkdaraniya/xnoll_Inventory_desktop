@@ -16,7 +16,8 @@ ipcMain.handle('settings:get', async () => {
 // Update settings
 ipcMain.handle('settings:save', async (_event, payload) => {
   try {
-    db.updateSettings(payload);
+    const current = db.getSettings() || {};
+    db.updateSettings({ ...current, ...(payload || {}) });
     return { success: true };
   } catch (error) {
     console.error('Save settings error:', error);

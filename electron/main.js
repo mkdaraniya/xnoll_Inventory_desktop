@@ -9,7 +9,6 @@ const appMenu = require("./menu");
 require("./ipc/app.ipc");
 require("./ipc/customer.ipc");
 require("./ipc/product.ipc");
-require("./ipc/booking.ipc");
 require("./ipc/invoice.ipc");
 require("./ipc/settings.ipc");
 require("./ipc/search.ipc");
@@ -17,11 +16,11 @@ require("./ipc/customFields.ipc");
 require("./ipc/notes.ipc");
 require("./ipc/reports.ipc");
 require("./ipc/company.ipc");
-require("./ipc/calendar.ipc");
 require("./ipc/error.ipc");
 require("./ipc/sku.ipc");
 require("./ipc/print.ipc");
 require("./ipc/seeder.ipc");
+require("./ipc/inventory.ipc");
 
 const isDev = process.env.NODE_ENV === "development";
 let mainWindow = null;
@@ -34,7 +33,7 @@ function registerGlobalShortcuts() {
   });
 
   globalShortcut.register("CommandOrControl+N", () => {
-    if (mainWindow) mainWindow.webContents.send("shortcut", "newBooking");
+    if (mainWindow) mainWindow.webContents.send("navigate", "stock");
   });
 
   globalShortcut.register("CommandOrControl+/", () => {
@@ -42,7 +41,7 @@ function registerGlobalShortcuts() {
   });
 
   globalShortcut.register("CommandOrControl+2", () => {
-    if (mainWindow) mainWindow.webContents.send("navigate", "calendar");
+    if (mainWindow) mainWindow.webContents.send("navigate", "products");
   });
 
   globalShortcut.register("CommandOrControl+1", () => {

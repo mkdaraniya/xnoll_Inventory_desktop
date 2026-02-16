@@ -6,12 +6,14 @@ import Sidebar from "./components/layout/Sidebar.jsx";
 import Dashboard from "./pages/Dashboard/index.jsx";
 import Customers from "./pages/Customers/index.jsx";
 import Products from "./pages/Products/index.jsx";
-import Booking from "./pages/Booking/index.jsx";
 import Invoices from "./pages/Invoices/index.jsx";
 import Settings from "./pages/Settings/index.jsx";
 import Reports from "./pages/Reports/index.jsx";
 import Notes from "./pages/Notes/index.jsx";
-import CalendarPage from "./pages/Calendar/index.jsx";
+import Suppliers from "./pages/Suppliers/index.jsx";
+import Purchases from "./pages/Purchases/index.jsx";
+import StockMovements from "./pages/StockMovements/index.jsx";
+import Warehouses from "./pages/Warehouses/index.jsx";
 
 const AppContent = () => {
   const [activePage, setActivePage] = useState("dashboard");
@@ -29,14 +31,18 @@ const AppContent = () => {
         return <Customers />;
       case "products":
         return <Products />;
-      case "booking":
-        return <Booking />;
+      case "suppliers":
+        return <Suppliers />;
+      case "purchases":
+        return <Purchases />;
+      case "stock":
+        return <StockMovements />;
+      case "warehouses":
+        return <Warehouses />;
       case "invoices":
         return <Invoices />;
       case "reports":
         return <Reports />;
-      case "calendar":
-        return <CalendarPage />;
       case "notes":
         return <Notes />;
       case "settings":

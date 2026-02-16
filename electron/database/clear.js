@@ -12,14 +12,22 @@ if (!fs.existsSync(dbPath)) {
 const db = new Database(dbPath);
 
 // WARNING: This permanently deletes rows. Back up your DB if needed.
-console.log("Clearing seeded tables (customers, products, bookings, invoices, notes, custom_field_values, custom_fields).");
+console.log("Clearing seeded tables (customers, products, suppliers, purchase_orders, inventory_lots, stock_transactions, invoices, notes, custom fields).");
 
 const deleteOrder = [
+  "stock_transactions",
+  "inventory_lots",
+  "product_reorder_levels",
+  "warehouse_stock",
+  "purchase_order_items",
+  "purchase_orders",
+  "suppliers",
   "custom_field_values",
+  "invoice_items",
   "invoices",
-  "bookings",
   "products",
   "customers",
+  "warehouses",
   "notes",
   "custom_fields"
 ];

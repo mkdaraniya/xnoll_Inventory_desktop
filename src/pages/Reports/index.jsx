@@ -1,42 +1,64 @@
-import React, { useEffect, useState, useMemo } from "react";
-import Button from "../../components/common/Button";
-import { formatCurrency } from '../../utils/format';
+import React, { useEffect, useMemo, useState } from "react";
+
+const csvExport = (rows, filename) => {
+  if (!rows?.length) return;
+  const headers = Object.keys(rows[0]);
+  const csv = [headers.join(","), ...rows.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 const Reports = () => {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [currency, setCurrency] = useState('INR');
+  const [activeTab, setActiveTab] = useState("overview");
   const [filters, setFilters] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
-    endDate: new Date().toISOString().slice(0, 10),
-    status: '',
-    customer: '',
-    product: ''
+    fromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    toDate: new Date().toISOString().slice(0, 10),
+    warehouseId: "",
+    productId: "",
   });
 
-  const [data, setData] = useState({
-    customers: [],
-    products: [],
-    bookings: [],
-    invoices: []
-  });
+  const [warehouses, setWarehouses] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [stockSummary, setStockSummary] = useState([]);
+  const [ledger, setLedger] = useState([]);
+  const [alerts, setAlerts] = useState({ lowStock: [], expiringLots: [] });
+  const [valuation, setValuation] = useState([]);
+  const [expiry, setExpiry] = useState([]);
 
   const loadData = async () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      const [customers, products, bookings, invoices, settingsRes] = await Promise.all([
-        window.xnoll.customersList(),
-        window.xnoll.productsList(),
-        window.xnoll.bookingsList(),
-        window.xnoll.invoicesList(),
-        window.xnoll.settingsGet()
-      ]);
+      const [warehouseRows, productRows, summaryRows, alertRows, valuationRows, expiryRows] =
+        await Promise.all([
+          window.xnoll.warehousesList(),
+          window.xnoll.productsList(),
+          window.xnoll.inventoryStockSummary(),
+          window.xnoll.inventoryReorderAlerts(),
+          window.xnoll.inventoryValuationReport(),
+          window.xnoll.inventoryExpiryReport(),
+        ]);
 
-      setData({ customers, products, bookings, invoices });
-      if (settingsRes?.success && settingsRes.settings) {
-        setCurrency(settingsRes.settings.currency || 'INR');
-      }
+      const ledgerRows = await window.xnoll.inventoryLedgerList({
+        from_date: filters.fromDate,
+        to_date: filters.toDate,
+        warehouse_id: filters.warehouseId || undefined,
+        product_id: filters.productId || undefined,
+      });
+
+      setWarehouses(warehouseRows || []);
+      setProducts(productRows || []);
+      setStockSummary(summaryRows || []);
+      setAlerts(alertRows || { lowStock: [], expiringLots: [] });
+      setValuation(valuationRows || []);
+      setExpiry(expiryRows || []);
+      setLedger(ledgerRows || []);
     } finally {
       setLoading(false);
     }
@@ -46,344 +68,194 @@ const Reports = () => {
     loadData();
   }, []);
 
-  const filteredBookings = useMemo(() => {
-    return data.bookings.filter(booking => {
-      const bookingDate = booking.booking_date?.slice(0, 10);
-      const matchesDate = (!filters.startDate || bookingDate >= filters.startDate) &&
-                         (!filters.endDate || bookingDate <= filters.endDate);
-      const matchesStatus = !filters.status || booking.status === filters.status;
-      const matchesCustomer = !filters.customer ||
-        booking.customer_name?.toLowerCase().includes(filters.customer.toLowerCase());
-      const matchesProduct = !filters.product ||
-        booking.product_name?.toLowerCase().includes(filters.product.toLowerCase());
-
-      return matchesDate && matchesStatus && matchesCustomer && matchesProduct;
+  useEffect(() => {
+    const cleanup = window.xnoll?.onReportsType?.((type) => {
+      if (type === "ledger") setActiveTab("ledger");
+      if (type === "reorder") setActiveTab("reorder");
+      if (type === "expiry") setActiveTab("expiry");
+      if (type === "valuation") setActiveTab("valuation");
     });
-  }, [data.bookings, filters]);
+    return cleanup;
+  }, []);
 
-  const filteredInvoices = useMemo(() => {
-    return data.invoices.filter(invoice => {
-      const invoiceDate = invoice.invoice_date;
-      const matchesDate = (!filters.startDate || invoiceDate >= filters.startDate) &&
-                         (!filters.endDate || invoiceDate <= filters.endDate);
-      const matchesStatus = !filters.status || invoice.status === filters.status;
-      const matchesCustomer = !filters.customer ||
-        invoice.customer_name?.toLowerCase().includes(filters.customer.toLowerCase());
-
-      return matchesDate && matchesStatus && matchesCustomer;
+  const filteredSummary = useMemo(() => {
+    return stockSummary.filter((row) => {
+      const warehouseOk = !filters.warehouseId || Number(row.warehouse_id) === Number(filters.warehouseId);
+      const productOk = !filters.productId || Number(row.product_id) === Number(filters.productId);
+      return warehouseOk && productOk;
     });
-  }, [data.invoices, filters]);
+  }, [stockSummary, filters.warehouseId, filters.productId]);
 
-  const summary = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const bookingsToday = data.bookings.filter(b => b.booking_date?.slice(0, 10) === todayStr).length;
-    const bookingsUpcoming = data.bookings.filter(b => b.booking_date?.slice(0, 10) > todayStr).length;
-    const invoicesUnpaid = data.invoices.filter(i => i.status !== 'paid').length;
-    const totalRevenue = data.invoices.reduce((sum, i) => sum + (Number(i.total) || 0), 0);
-
-    return {
-      customers: data.customers.length,
-      products: data.products.length,
-      bookingsToday,
-      bookingsUpcoming,
-      invoicesUnpaid,
-      totalRevenue
-    };
-  }, [data]);
-
-  const exportToCSV = (data, filename) => {
-    if (!data || data.length === 0) return;
-
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
-  };
+  const totals = useMemo(() => {
+    const stockUnits = filteredSummary.reduce((sum, row) => sum + Number(row.on_hand || 0), 0);
+    const lowStock = (alerts.lowStock || []).length;
+    const valuationTotal = valuation.reduce((sum, row) => sum + Number(row.stock_value || 0), 0);
+    const expiringCount = expiry.filter((row) => Number(row.days_to_expiry || 9999) <= 45).length;
+    return { stockUnits, lowStock, valuationTotal, expiringCount };
+  }, [filteredSummary, alerts.lowStock, valuation, expiry]);
 
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="mb-0">Reports & Analytics</h4>
-        <Button variant="outline-primary" size="sm" onClick={loadData} disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh Data'}
-        </Button>
+        <h4 className="mb-0">Inventory Reports</h4>
+        <button className="btn btn-outline-primary" onClick={loadData} disabled={loading}>
+          {loading ? "Loading..." : "Refresh"}
+        </button>
       </div>
 
-      {/* Tab Navigation */}
-      <ul className="nav nav-tabs mb-3">
-        <li className="nav-item">
-          <button className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('overview')}>
-            Overview
-          </button>
-        </li>
-        <li className="nav-item">
-          <button className={`nav-link ${activeTab === 'bookings' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('bookings')}>
-            Bookings Report
-          </button>
-        </li>
-        <li className="nav-item">
-          <button className={`nav-link ${activeTab === 'invoices' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('invoices')}>
-            Invoices Report
-          </button>
-        </li>
-      </ul>
-
-      {/* Filters */}
       <div className="card shadow-sm border-0 mb-3">
         <div className="card-body">
-          <div className="row g-3">
-            <div className="col-md-3">
-              <label className="form-label small">Start Date</label>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                value={filters.startDate}
-                onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              />
+          <div className="row g-3 align-items-end">
+            <div className="col-md-2">
+              <label className="form-label small">From</label>
+              <input type="date" className="form-control form-control-sm" value={filters.fromDate} onChange={(e) => setFilters((p) => ({ ...p, fromDate: e.target.value }))} />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label small">To</label>
+              <input type="date" className="form-control form-control-sm" value={filters.toDate} onChange={(e) => setFilters((p) => ({ ...p, toDate: e.target.value }))} />
             </div>
             <div className="col-md-3">
-              <label className="form-label small">End Date</label>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                value={filters.endDate}
-                onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label small">Status</label>
-              <select
-                className="form-select form-select-sm"
-                value={filters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="paid">Paid</option>
-                <option value="unpaid">Unpaid</option>
+              <label className="form-label small">Warehouse</label>
+              <select className="form-select form-select-sm" value={filters.warehouseId} onChange={(e) => setFilters((p) => ({ ...p, warehouseId: e.target.value }))}>
+                <option value="">All</option>
+                {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
             <div className="col-md-3">
-              <label className="form-label small">Search</label>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="Customer/Product name..."
-                value={filters.customer || filters.product}
-                onChange={(e) => {
-                  handleFilterChange('customer', e.target.value);
-                  handleFilterChange('product', e.target.value);
-                }}
-              />
+              <label className="form-label small">Product</label>
+              <select className="form-select form-select-sm" value={filters.productId} onChange={(e) => setFilters((p) => ({ ...p, productId: e.target.value }))}>
+                <option value="">All</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="col-md-2">
+              <button className="btn btn-primary btn-sm w-100" onClick={loadData}>Apply</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Overview Tab */}
-      {activeTab === 'overview' && (
-      <div className="row g-3">
-        <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-primary mb-2">
-                  <i className="fas fa-users fa-2x"></i>
-                </div>
-              <h3 className="mb-1">{summary.customers}</h3>
-                <p className="text-muted small mb-0">Total Customers</p>
-              </div>
-            </div>
-          </div>
+      <ul className="nav nav-tabs mb-3">
+        <li className="nav-item"><button className={`nav-link ${activeTab === "overview" ? "active" : ""}`} onClick={() => setActiveTab("overview")}>Overview</button></li>
+        <li className="nav-item"><button className={`nav-link ${activeTab === "ledger" ? "active" : ""}`} onClick={() => setActiveTab("ledger")}>Stock Ledger</button></li>
+        <li className="nav-item"><button className={`nav-link ${activeTab === "reorder" ? "active" : ""}`} onClick={() => setActiveTab("reorder")}>Reorder Alerts</button></li>
+        <li className="nav-item"><button className={`nav-link ${activeTab === "expiry" ? "active" : ""}`} onClick={() => setActiveTab("expiry")}>Expiry Tracking</button></li>
+        <li className="nav-item"><button className={`nav-link ${activeTab === "valuation" ? "active" : ""}`} onClick={() => setActiveTab("valuation")}>Valuation</button></li>
+      </ul>
 
-          <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-success mb-2">
-                  <i className="fas fa-box fa-2x"></i>
-                </div>
-                <h3 className="mb-1">{summary.products}</h3>
-                <p className="text-muted small mb-0">Products/Services</p>
-            </div>
-          </div>
+      {activeTab === "overview" && (
+        <div className="row g-3">
+          <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">On-hand Units</div><div className="h4 mb-0">{totals.stockUnits.toFixed(2)}</div></div></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Low Stock Alerts</div><div className="h4 mb-0 text-danger">{totals.lowStock}</div></div></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Expiring Lots (&lt;=45d)</div><div className="h4 mb-0 text-warning">{totals.expiringCount}</div></div></div></div>
+          <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Inventory Value</div><div className="h4 mb-0 text-success">{totals.valuationTotal.toFixed(2)}</div></div></div></div>
         </div>
+      )}
 
-        <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-info mb-2">
-                  <i className="fas fa-calendar-day fa-2x"></i>
-                </div>
-                <h3 className="mb-1">{summary.bookingsToday}</h3>
-                <p className="text-muted small mb-0">Today's Bookings</p>
-              </div>
-            </div>
+      {activeTab === "ledger" && (
+        <div className="card border-0 shadow-sm">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h6 className="mb-0">Stock Ledger ({ledger.length})</h6>
+            <button className="btn btn-sm btn-outline-success" onClick={() => csvExport(ledger, `stock-ledger-${filters.fromDate}-to-${filters.toDate}.csv`)} disabled={!ledger.length}>Export CSV</button>
           </div>
-
-          <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-warning mb-2">
-                  <i className="fas fa-calendar-alt fa-2x"></i>
-                </div>
-                <h3 className="mb-1">{summary.bookingsUpcoming}</h3>
-                <p className="text-muted small mb-0">Upcoming Bookings</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-danger mb-2">
-                  <i className="fas fa-file-invoice-dollar fa-2x"></i>
-                </div>
-                <h3 className="mb-1">{summary.invoicesUnpaid}</h3>
-                <p className="text-muted small mb-0">Unpaid Invoices</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-md-3">
-            <div className="card shadow-sm border-0 h-100">
-              <div className="card-body text-center">
-                <div className="text-success mb-2">
-                  <i className="fas fa-rupee-sign fa-2x"></i>
-                </div>
-                <h3 className="mb-1">{formatCurrency(summary.totalRevenue, currency)}</h3>
-                <p className="text-muted small mb-0">Total Revenue</p>
-              </div>
-            </div>
+          <div className="table-responsive">
+            <table className="table table-sm table-striped mb-0 align-middle">
+              <thead><tr><th>Date</th><th>SKU</th><th>Product</th><th>Warehouse</th><th>Type</th><th className="text-end">Qty</th><th className="text-end">Cost</th><th>Lot</th><th>Reference</th></tr></thead>
+              <tbody>
+                {ledger.length === 0 ? <tr><td colSpan={9} className="text-center text-muted py-4">No records.</td></tr> : ledger.map((r) => (
+                  <tr key={r.id}>
+                    <td>{String(r.txn_date || "").replace("T", " ").slice(0, 16)}</td>
+                    <td>{r.product_sku || "-"}</td>
+                    <td>{r.product_name}</td>
+                    <td>{r.warehouse_name}</td>
+                    <td className="text-uppercase">{r.txn_type}</td>
+                    <td className="text-end">{Number(r.quantity || 0).toFixed(2)}</td>
+                    <td className="text-end">{Number(r.unit_cost || 0).toFixed(2)}</td>
+                    <td>{r.lot_number || "-"}</td>
+                    <td>{r.reference_type || "manual"}{r.reference_id ? ` #${r.reference_id}` : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* Bookings Report Tab */}
-      {activeTab === 'bookings' && (
-          <div className="card shadow-sm border-0">
+      {activeTab === "reorder" && (
+        <div className="card border-0 shadow-sm">
           <div className="card-header d-flex justify-content-between align-items-center">
-            <h6 className="mb-0">Bookings Report ({filteredBookings.length} records)</h6>
-            <Button
-              variant="outline-success"
-              size="sm"
-              onClick={() => exportToCSV(filteredBookings, `bookings-report-${filters.startDate}-to-${filters.endDate}.csv`)}
-              disabled={filteredBookings.length === 0}
-            >
-              <i className="fas fa-download me-1"></i> Export CSV
-            </Button>
+            <h6 className="mb-0">Reorder Alerts ({(alerts.lowStock || []).length})</h6>
+            <button className="btn btn-sm btn-outline-success" onClick={() => csvExport(alerts.lowStock || [], "reorder-alerts.csv")} disabled={!(alerts.lowStock || []).length}>Export CSV</button>
           </div>
-            <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-sm table-striped">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Customer</th>
-                    <th>Service</th>
-                    <th>Status</th>
+          <div className="table-responsive">
+            <table className="table table-sm table-striped mb-0 align-middle">
+              <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th className="text-end">On Hand</th><th className="text-end">Reorder</th><th className="text-end">Preferred</th></tr></thead>
+              <tbody>
+                {(alerts.lowStock || []).length === 0 ? <tr><td colSpan={6} className="text-center text-muted py-4">No reorder alerts.</td></tr> : (alerts.lowStock || []).map((r) => (
+                  <tr key={`${r.product_id}-${r.warehouse_id}`}>
+                    <td>{r.sku || "-"}</td>
+                    <td>{r.product_name}</td>
+                    <td>{r.warehouse_name}</td>
+                    <td className="text-end text-danger fw-semibold">{Number(r.on_hand || 0).toFixed(2)}</td>
+                    <td className="text-end">{Number(r.reorder_point || 0).toFixed(2)}</td>
+                    <td className="text-end">{Number(r.preferred_stock || 0).toFixed(2)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredBookings.map(booking => (
-                    <tr key={booking.id}>
-                      <td>{new Date(booking.booking_date).toLocaleDateString()}</td>
-                      <td>{new Date(booking.booking_date).toLocaleTimeString()}</td>
-                      <td>{booking.customer_name}</td>
-                      <td>{booking.product_name || booking.service_name}</td>
-                      <td>
-                        <span className={`badge ${booking.status === 'confirmed' ? 'bg-success' :
-                                                    booking.status === 'completed' ? 'bg-primary' :
-                                                    booking.status === 'cancelled' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                          {booking.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredBookings.length === 0 && (
-                    <tr>
-                      <td colSpan="5" className="text-center text-muted py-4">
-                        No bookings found for the selected filters
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* Invoices Report Tab */}
-      {activeTab === 'invoices' && (
-          <div className="card shadow-sm border-0">
+      {activeTab === "expiry" && (
+        <div className="card border-0 shadow-sm">
           <div className="card-header d-flex justify-content-between align-items-center">
-            <h6 className="mb-0">Invoices Report ({filteredInvoices.length} records)</h6>
-            <Button
-              variant="outline-success"
-              size="sm"
-              onClick={() => exportToCSV(filteredInvoices, `invoices-report-${filters.startDate}-to-${filters.endDate}.csv`)}
-              disabled={filteredInvoices.length === 0}
-            >
-              <i className="fas fa-download me-1"></i> Export CSV
-            </Button>
+            <h6 className="mb-0">Expiry Tracking ({expiry.length})</h6>
+            <button className="btn btn-sm btn-outline-success" onClick={() => csvExport(expiry, "expiry-tracking.csv")} disabled={!expiry.length}>Export CSV</button>
           </div>
-            <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-sm table-striped">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Invoice #</th>
-                    <th>Customer</th>
-                    <th>Amount</th>
-                    <th>Status</th>
+          <div className="table-responsive">
+            <table className="table table-sm table-striped mb-0 align-middle">
+              <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th>Lot</th><th>Expiry</th><th className="text-end">Days Left</th><th className="text-end">Qty</th></tr></thead>
+              <tbody>
+                {expiry.length === 0 ? <tr><td colSpan={7} className="text-center text-muted py-4">No lots with expiry found.</td></tr> : expiry.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.sku || "-"}</td>
+                    <td>{r.product_name}</td>
+                    <td>{r.warehouse_name}</td>
+                    <td>{r.lot_number}</td>
+                    <td>{r.expiry_date}</td>
+                    <td className={`text-end ${Number(r.days_to_expiry) <= 15 ? "text-danger fw-semibold" : Number(r.days_to_expiry) <= 45 ? "text-warning fw-semibold" : ""}`}>{Number(r.days_to_expiry || 0)}</td>
+                    <td className="text-end">{Number(r.quantity_available || 0).toFixed(2)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredInvoices.map(invoice => (
-                    <tr key={invoice.id}>
-                      <td>{new Date(invoice.invoice_date).toLocaleDateString()}</td>
-                      <td>{invoice.id}</td>
-                      <td>{invoice.customer_name}</td>
-                      <td>{formatCurrency(invoice.total, currency)}</td>
-                      <td>
-                        <span className={`badge ${invoice.status === 'paid' ? 'bg-success' : 'bg-danger'}`}>
-                          {invoice.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredInvoices.length === 0 && (
-                    <tr>
-                      <td colSpan="5" className="text-center text-muted py-4">
-                        No invoices found for the selected filters
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "valuation" && (
+        <div className="card border-0 shadow-sm">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h6 className="mb-0">Inventory Valuation ({valuation.length})</h6>
+            <button className="btn btn-sm btn-outline-success" onClick={() => csvExport(valuation, "inventory-valuation.csv")} disabled={!valuation.length}>Export CSV</button>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-sm table-striped mb-0 align-middle">
+              <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th className="text-end">On Hand</th><th className="text-end">Avg Cost</th><th className="text-end">Stock Value</th></tr></thead>
+              <tbody>
+                {valuation.length === 0 ? <tr><td colSpan={6} className="text-center text-muted py-4">No valuation data found.</td></tr> : valuation.map((r) => (
+                  <tr key={`${r.product_id}-${r.warehouse_id}`}>
+                    <td>{r.sku || "-"}</td>
+                    <td>{r.product_name}</td>
+                    <td>{r.warehouse_name}</td>
+                    <td className="text-end">{Number(r.on_hand || 0).toFixed(2)}</td>
+                    <td className="text-end">{Number(r.avg_cost || 0).toFixed(2)}</td>
+                    <td className="text-end fw-semibold">{Number(r.stock_value || 0).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

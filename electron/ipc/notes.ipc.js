@@ -10,6 +10,14 @@ ipcMain.handle('notes:list', async () => {
   }
 });
 
+ipcMain.handle('notes:query', async (_event, payload) => {
+  try {
+    return { success: true, ...db.queryNotes(payload || {}) };
+  } catch (err) {
+    return { success: false, error: err.message, rows: [], total: 0, page: 1, pageSize: 10, totalPages: 1 };
+  }
+});
+
 ipcMain.handle('notes:create', async (_event, payload) => {
   try {
     return db.insertNote(payload);
@@ -36,4 +44,3 @@ ipcMain.handle('notes:delete', async (_event, id) => {
     return { success: false, error: err.message };
   }
 });
-

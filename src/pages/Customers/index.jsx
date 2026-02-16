@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
 import Pagination from "../../components/common/Pagination";
+import { ensureSuccess, notifyError } from "../../utils/feedback";
+import { isValidEmail, isValidPhone, validateRequiredFields } from "../../utils/validation";
 
 const emptyForm = { id: null, name: "", phone: "", email: "" };
 
@@ -19,6 +21,8 @@ const Customers = () => {
   const [pageSize, setPageSize] = useState(10);
   const [sortKey, setSortKey] = useState("id");
   const [sortDir, setSortDir] = useState("desc"); // 'asc' | 'desc'
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
 
@@ -26,12 +30,23 @@ const Customers = () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      const [rows, fields] = await Promise.all([
-        window.xnoll.customersList(),
+      const [res, fields] = await Promise.all([
+        window.xnoll.customersQuery({
+          page,
+          pageSize,
+          search,
+          sortKey,
+          sortDir,
+        }),
         window.xnoll.customFieldsList("customers"),
       ]);
-      setCustomers(rows || []);
+      ensureSuccess(res, "Unable to load customers.");
+      setCustomers(res.rows || []);
+      setTotal(Number(res.total || 0));
+      setTotalPages(Number(res.totalPages || 1));
       setCustomFields(fields || []);
+    } catch (error) {
+      notifyError(error, "Unable to load customers.");
     } finally {
       setLoading(false);
     }
@@ -39,112 +54,10 @@ const Customers = () => {
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [page, pageSize, search, sortKey, sortDir]);
 
-  // ----- Filters, sorting, pagination -----
-  const getSortValue = (row, sortKey) => {
-    if (!sortKey) return "";
-
-    // 1️⃣ root column
-    if (row[sortKey] !== undefined && row[sortKey] !== null) {
-      return row[sortKey];
-    }
-
-    // 2️⃣ custom field
-    if (row.custom_fields && row.custom_fields[sortKey] !== undefined) {
-      return row.custom_fields[sortKey];
-    }
-
-    return "";
-  };
-
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    let data = [...customers];
-
-    // 1) Filter by term if present
-    if (term) {
-      data = data.filter((c) => {
-        // base fields
-        const baseMatch =
-          (c.name || "").toLowerCase().includes(term) ||
-          (c.phone || "").toLowerCase().includes(term) ||
-          (c.email || "").toLowerCase().includes(term);
-
-        if (baseMatch) return true;
-
-        // searchable custom fields
-        if (c.custom_fields && Array.isArray(customFields)) {
-          for (const field of customFields) {
-            if (!field.searchable) continue;
-            const value = c.custom_fields[field.name];
-            if (
-              value !== undefined &&
-              String(value).toLowerCase().includes(term)
-            ) {
-              return true;
-            }
-          }
-        }
-
-        return false;
-      });
-    }
-
-    // 2) Sorting — always apply sorting even when no search term
-    const getSortValue = (row, key) => {
-      if (!key) return "";
-
-      // root property
-      if (row[key] !== undefined && row[key] !== null) return row[key];
-
-      // custom field fallback
-      if (row.custom_fields && row.custom_fields[key] !== undefined) {
-        return row.custom_fields[key];
-      }
-
-      return "";
-    };
-
-    data.sort((a, b) => {
-      let va = getSortValue(a, sortKey);
-      let vb = getSortValue(b, sortKey);
-
-      // Try numeric compare when both are numeric-like
-      const na = parseFloat(va);
-      const nb = parseFloat(vb);
-      const bothNumbers =
-        String(va).trim() !== "" &&
-        String(vb).trim() !== "" &&
-        !Number.isNaN(na) &&
-        !Number.isNaN(nb);
-
-      if (bothNumbers) {
-        if (na < nb) return sortDir === "asc" ? -1 : 1;
-        if (na > nb) return sortDir === "asc" ? 1 : -1;
-        return 0;
-      }
-
-      // String compare (case-insensitive)
-      va = String(va).toLowerCase();
-      vb = String(vb).toLowerCase();
-
-      if (va < vb) return sortDir === "asc" ? -1 : 1;
-      if (va > vb) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-
-    return data;
-  }, [customers, customFields, search, sortKey, sortDir]);
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(page, totalPages);
-
-  const pageData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize]);
+  const currentPage = Math.min(page, totalPages || 1);
+  const pageData = useMemo(() => customers, [customers]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -173,16 +86,19 @@ const Customers = () => {
       email: form.email.trim(),
     };
 
-    if (!payload.name) return;
+    const requiredError = validateRequiredFields({ name: payload.name }, { name: "Name" });
+    if (requiredError) return notifyError(requiredError);
+    if (!isValidEmail(payload.email)) return notifyError("Enter a valid email address.");
+    if (!isValidPhone(payload.phone)) return notifyError("Enter a valid phone number.");
 
     setLoading(true);
     try {
       let customerId;
       if (isEditing && payload.id != null) {
-        await window.xnoll.customersUpdate(payload);
+        ensureSuccess(await window.xnoll.customersUpdate(payload), "Unable to update customer.");
         customerId = payload.id;
       } else {
-        const result = await window.xnoll.customersCreate(payload);
+        const result = ensureSuccess(await window.xnoll.customersCreate(payload), "Unable to create customer.");
         customerId = result.id;
       }
 
@@ -204,8 +120,7 @@ const Customers = () => {
       setShowModal(false);
       await loadCustomers();
     } catch (error) {
-      console.error("Error saving customer:", error);
-      // Optionally show user-facing error
+      notifyError(error, "Unable to save customer.");
     } finally {
       setLoading(false);
     }
@@ -248,11 +163,10 @@ const Customers = () => {
 
     setLoading(true);
     try {
-      await window.xnoll.customersDelete(id);
+      ensureSuccess(await window.xnoll.customersDelete(id), "Unable to delete customer.");
       await loadCustomers();
     } catch (error) {
-      console.error("Error deleting customer:", error);
-      // Optionally show user-facing error
+      notifyError(error, "Unable to delete customer.");
     } finally {
       setLoading(false);
     }
@@ -265,6 +179,7 @@ const Customers = () => {
       setSortKey(key);
       setSortDir("asc");
     }
+    setPage(1);
   };
 
   const sortIcon = (key) => {

@@ -3,10 +3,10 @@ const { globalShortcut } = require('electron');
 
 const SHORTCUTS = {
   'CommandOrControl+K': 'globalSearch',
-  'CommandOrControl+N': 'newBooking',
+  'CommandOrControl+N': 'newStockTransaction',
   'CommandOrControl+,': 'showHelp',
   'CommandOrControl+1': 'dashboard',
-  'CommandOrControl+2': 'calendar'
+  'CommandOrControl+2': 'products'
 };
 
 function registerShortcuts(mainWindow) {

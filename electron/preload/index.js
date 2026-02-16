@@ -5,7 +5,7 @@ const env = process.env.NODE_ENV || "production";
 contextBridge.exposeInMainWorld("xnoll", {
   // App info
   getAppInfo: () => ({
-    name: "Xnoll Booking Desktop",
+    name: "Xnoll Inventory Desktop",
     env,
   }),
 
@@ -16,31 +16,32 @@ contextBridge.exposeInMainWorld("xnoll", {
     // Return a cleanup function
     return () => ipcRenderer.removeListener("navigate", handler);
   },
+  onReportsType: (callback) => {
+    const handler = (_event, type) => callback(type);
+    ipcRenderer.on("reports:type", handler);
+    return () => ipcRenderer.removeListener("reports:type", handler);
+  },
 
   // Database - Generic
   dbSelect: (table) => ipcRenderer.invoke("db:select", table),
 
   // Customers API
   customersList: () => ipcRenderer.invoke("customers:list"),
+  customersQuery: (payload) => ipcRenderer.invoke("customers:query", payload),
   customersCreate: (payload) => ipcRenderer.invoke("customers:create", payload),
   customersUpdate: (payload) => ipcRenderer.invoke("customers:update", payload),
   customersDelete: (id) => ipcRenderer.invoke("customers:delete", id),
 
   // Products API
   productsList: () => ipcRenderer.invoke("products:list"),
+  productsQuery: (payload) => ipcRenderer.invoke("products:query", payload),
   productsCreate: (payload) => ipcRenderer.invoke("products:create", payload),
   productsUpdate: (payload) => ipcRenderer.invoke("products:update", payload),
   productsDelete: (id) => ipcRenderer.invoke("products:delete", id),
 
-  // Bookings API
-  bookingsList: (payload) => ipcRenderer.invoke("bookings:list", payload),
-  bookingsCreate: (payload) => ipcRenderer.invoke("bookings:create", payload),
-  bookingsUpdate: (payload) => ipcRenderer.invoke("bookings:update", payload),
-  bookingsDelete: (id) => ipcRenderer.invoke("bookings:delete", id),
-  getBookingsById: (id) => ipcRenderer.invoke("bookings:getById", id),
-
   // Invoices API
   invoicesList: () => ipcRenderer.invoke("invoices:list"),
+  invoicesQuery: (payload) => ipcRenderer.invoke("invoices:query", payload),
   invoicesCreate: (payload) => ipcRenderer.invoke("invoices:create", payload),
   invoicesDelete: (id) => ipcRenderer.invoke("invoices:delete", id),
   invoicesGetById: (id) => ipcRenderer.invoke("invoices:getById", id),
@@ -63,6 +64,7 @@ contextBridge.exposeInMainWorld("xnoll", {
 
   // Notes API
   notesList: () => ipcRenderer.invoke("notes:list"),
+  notesQuery: (payload) => ipcRenderer.invoke("notes:query", payload),
   notesCreate: (payload) => ipcRenderer.invoke("notes:create", payload),
   notesUpdate: (payload) => ipcRenderer.invoke("notes:update", payload),
   notesDelete: (id) => ipcRenderer.invoke("notes:delete", id),
@@ -88,10 +90,6 @@ contextBridge.exposeInMainWorld("xnoll", {
   // Company Profile API
   companyGet: () => ipcRenderer.invoke("company:get"),
   companySave: (payload) => ipcRenderer.invoke("company:save", payload),
-
-  // Calendar API
-  calendarGetBookings: (startDate, endDate) =>
-    ipcRenderer.invoke("calendar:getBookings", { startDate, endDate }),
 
   // Notifications (from main process)
   onNotification: (callback) => {
@@ -119,6 +117,52 @@ contextBridge.exposeInMainWorld("xnoll", {
 
   // Print
   print: (htmlContent) => ipcRenderer.invoke("print:html", htmlContent),
+
+  // Suppliers API
+  suppliersList: () => ipcRenderer.invoke("suppliers:list"),
+  suppliersQuery: (payload) => ipcRenderer.invoke("suppliers:query", payload),
+  suppliersCreate: (payload) => ipcRenderer.invoke("suppliers:create", payload),
+  suppliersUpdate: (payload) => ipcRenderer.invoke("suppliers:update", payload),
+  suppliersDelete: (id) => ipcRenderer.invoke("suppliers:delete", id),
+
+  // Purchase Orders API
+  purchaseOrdersList: () => ipcRenderer.invoke("purchaseOrders:list"),
+  purchaseOrdersQuery: (payload) => ipcRenderer.invoke("purchaseOrders:query", payload),
+  purchaseOrdersGetById: (id) => ipcRenderer.invoke("purchaseOrders:getById", id),
+  purchaseOrdersCreate: (payload) => ipcRenderer.invoke("purchaseOrders:create", payload),
+  purchaseOrdersUpdate: (payload) => ipcRenderer.invoke("purchaseOrders:update", payload),
+  purchaseOrdersDelete: (id) => ipcRenderer.invoke("purchaseOrders:delete", id),
+
+  // Stock API
+  stockMovementsList: () => ipcRenderer.invoke("stockMovements:list"),
+  stockMovementsCreate: (payload) => ipcRenderer.invoke("stockMovements:create", payload),
+  stockSummary: () => ipcRenderer.invoke("stock:summary"),
+
+  // Warehouses API
+  warehousesList: () => ipcRenderer.invoke("warehouses:list"),
+  warehousesQuery: (payload) => ipcRenderer.invoke("warehouses:query", payload),
+  warehousesCreate: (payload) => ipcRenderer.invoke("warehouses:create", payload),
+  warehousesUpdate: (payload) => ipcRenderer.invoke("warehouses:update", payload),
+  warehousesDelete: (id) => ipcRenderer.invoke("warehouses:delete", id),
+
+  // Inventory API
+  inventoryTransactionCreate: (payload) =>
+    ipcRenderer.invoke("inventory:transaction:create", payload),
+  inventoryTransferCreate: (payload) =>
+    ipcRenderer.invoke("inventory:transfer:create", payload),
+  inventoryReorderUpsert: (payload) =>
+    ipcRenderer.invoke("inventory:reorder:upsert", payload),
+  inventoryStockSummary: () => ipcRenderer.invoke("inventory:stock:summary"),
+  inventoryLotsList: (filters) =>
+    ipcRenderer.invoke("inventory:lots:list", filters),
+  inventoryReorderAlerts: () => ipcRenderer.invoke("inventory:alerts:reorder"),
+  inventoryLedgerList: (filters) =>
+    ipcRenderer.invoke("inventory:ledger:list", filters),
+  inventoryLedgerQuery: (filters) =>
+    ipcRenderer.invoke("inventory:ledger:query", filters),
+  inventoryValuationReport: () =>
+    ipcRenderer.invoke("inventory:report:valuation"),
+  inventoryExpiryReport: () => ipcRenderer.invoke("inventory:report:expiry"),
 });
 
 // electron/preload/index.js (in the "api" exposure)
