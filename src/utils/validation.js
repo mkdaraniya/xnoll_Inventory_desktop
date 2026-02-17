@@ -15,7 +15,8 @@ export const isValidPAN = (value) =>
   !value || PAN_REGEX.test(String(value).trim().toUpperCase());
 
 export function validateRequiredFields(fields, labels = {}) {
-  for (const key of fields) {
+  const fieldKeys = Array.isArray(fields) ? fields : Object.keys(fields || {});
+  for (const key of fieldKeys) {
     if (!required(fields[key])) {
       return `${labels[key] || key} is required.`;
     }

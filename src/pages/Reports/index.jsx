@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { formatStatusLabel, getStatusBadgeClass } from "../../utils/status";
+import UnifiedLoader from "../../components/common/UnifiedLoader";
 
 const csvExport = (rows, filename) => {
   if (!rows?.length) return;
   const headers = Object.keys(rows[0]);
-  const csv = [headers.join(","), ...rows.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+  ].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -30,19 +35,31 @@ const Reports = () => {
   const [alerts, setAlerts] = useState({ lowStock: [], expiringLots: [] });
   const [valuation, setValuation] = useState([]);
   const [expiry, setExpiry] = useState([]);
+  const [featureSettings, setFeatureSettings] = useState({
+    enable_lot_tracking: 1,
+    enable_batch_tracking: 0,
+    enable_expiry_tracking: 1,
+  });
 
   const loadData = async () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      const [warehouseRows, productRows, summaryRows, alertRows, valuationRows, expiryRows] =
+      const [summaryRows, alertRows, valuationRows, expiryRows, settingsRes] =
         await Promise.all([
-          window.xnoll.warehousesList(),
-          window.xnoll.productsList(),
-          window.xnoll.inventoryStockSummary(),
-          window.xnoll.inventoryReorderAlerts(),
-          window.xnoll.inventoryValuationReport(),
-          window.xnoll.inventoryExpiryReport(),
+          window.xnoll.inventoryStockSummary({
+            warehouse_id: filters.warehouseId || undefined,
+            product_id: filters.productId || undefined,
+            limit: 1000,
+          }),
+          window.xnoll.inventoryReorderAlerts({ limit: 1000 }),
+          window.xnoll.inventoryValuationReport({
+            warehouse_id: filters.warehouseId || undefined,
+            product_id: filters.productId || undefined,
+            limit: 2000,
+          }),
+          window.xnoll.inventoryExpiryReport({ limit: 2000 }),
+          window.xnoll.settingsGet(),
         ]);
 
       const ledgerRows = await window.xnoll.inventoryLedgerList({
@@ -50,15 +67,23 @@ const Reports = () => {
         to_date: filters.toDate,
         warehouse_id: filters.warehouseId || undefined,
         product_id: filters.productId || undefined,
+        limit: 2000,
       });
 
-      setWarehouses(warehouseRows || []);
-      setProducts(productRows || []);
       setStockSummary(summaryRows || []);
       setAlerts(alertRows || { lowStock: [], expiringLots: [] });
       setValuation(valuationRows || []);
       setExpiry(expiryRows || []);
       setLedger(ledgerRows || []);
+      if (settingsRes?.success && settingsRes.settings) {
+        setFeatureSettings((prev) => ({
+          ...prev,
+          ...settingsRes.settings,
+          enable_lot_tracking: settingsRes.settings.enable_lot_tracking ? 1 : 0,
+          enable_batch_tracking: settingsRes.settings.enable_batch_tracking ? 1 : 0,
+          enable_expiry_tracking: settingsRes.settings.enable_expiry_tracking ? 1 : 0,
+        }));
+      }
     } finally {
       setLoading(false);
     }
@@ -66,6 +91,23 @@ const Reports = () => {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      if (!window.xnoll) return;
+      try {
+        const [warehouseRows, productRows] = await Promise.all([
+          window.xnoll.inventoryWarehouseOptions({ limit: 500 }),
+          window.xnoll.inventoryProductOptions({ limit: 1200 }),
+        ]);
+        setWarehouses(warehouseRows || []);
+        setProducts(productRows || []);
+      } catch (_err) {
+        // keep existing UI without blocking reports
+      }
+    };
+    loadFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -94,6 +136,14 @@ const Reports = () => {
     return { stockUnits, lowStock, valuationTotal, expiringCount };
   }, [filteredSummary, alerts.lowStock, valuation, expiry]);
 
+  const lotTrackingEnabled = Number(featureSettings.enable_lot_tracking || 0) === 1;
+  const expiryEnabled = lotTrackingEnabled && Number(featureSettings.enable_expiry_tracking || 0) === 1;
+  const lotLabel = Number(featureSettings.enable_batch_tracking || 0) === 1 ? "Batch" : "Lot";
+
+  useEffect(() => {
+    if (activeTab === "expiry" && !expiryEnabled) setActiveTab("overview");
+  }, [activeTab, expiryEnabled]);
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -102,6 +152,7 @@ const Reports = () => {
           {loading ? "Loading..." : "Refresh"}
         </button>
       </div>
+      <UnifiedLoader show={loading} text="Loading reports..." />
 
       <div className="card shadow-sm border-0 mb-3">
         <div className="card-body">
@@ -139,7 +190,7 @@ const Reports = () => {
         <li className="nav-item"><button className={`nav-link ${activeTab === "overview" ? "active" : ""}`} onClick={() => setActiveTab("overview")}>Overview</button></li>
         <li className="nav-item"><button className={`nav-link ${activeTab === "ledger" ? "active" : ""}`} onClick={() => setActiveTab("ledger")}>Stock Ledger</button></li>
         <li className="nav-item"><button className={`nav-link ${activeTab === "reorder" ? "active" : ""}`} onClick={() => setActiveTab("reorder")}>Reorder Alerts</button></li>
-        <li className="nav-item"><button className={`nav-link ${activeTab === "expiry" ? "active" : ""}`} onClick={() => setActiveTab("expiry")}>Expiry Tracking</button></li>
+        {expiryEnabled && <li className="nav-item"><button className={`nav-link ${activeTab === "expiry" ? "active" : ""}`} onClick={() => setActiveTab("expiry")}>Expiry Tracking</button></li>}
         <li className="nav-item"><button className={`nav-link ${activeTab === "valuation" ? "active" : ""}`} onClick={() => setActiveTab("valuation")}>Valuation</button></li>
       </ul>
 
@@ -147,7 +198,7 @@ const Reports = () => {
         <div className="row g-3">
           <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">On-hand Units</div><div className="h4 mb-0">{totals.stockUnits.toFixed(2)}</div></div></div></div>
           <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Low Stock Alerts</div><div className="h4 mb-0 text-danger">{totals.lowStock}</div></div></div></div>
-          <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Expiring Lots (&lt;=45d)</div><div className="h4 mb-0 text-warning">{totals.expiringCount}</div></div></div></div>
+          {expiryEnabled && <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Expiring {lotLabel}s (&lt;=45d)</div><div className="h4 mb-0 text-warning">{totals.expiringCount}</div></div></div></div>}
           <div className="col-md-3"><div className="card border-0 shadow-sm"><div className="card-body"><div className="small text-muted">Inventory Value</div><div className="h4 mb-0 text-success">{totals.valuationTotal.toFixed(2)}</div></div></div></div>
         </div>
       )}
@@ -160,18 +211,22 @@ const Reports = () => {
           </div>
           <div className="table-responsive">
             <table className="table table-sm table-striped mb-0 align-middle">
-              <thead><tr><th>Date</th><th>SKU</th><th>Product</th><th>Warehouse</th><th>Type</th><th className="text-end">Qty</th><th className="text-end">Cost</th><th>Lot</th><th>Reference</th></tr></thead>
+              <thead><tr><th>Date</th><th>SKU</th><th>Product</th><th>Warehouse</th><th>Type</th><th className="text-end">Qty</th><th className="text-end">Cost</th>{lotTrackingEnabled && <th>{lotLabel}</th>}<th>Reference</th></tr></thead>
               <tbody>
-                {ledger.length === 0 ? <tr><td colSpan={9} className="text-center text-muted py-4">No records.</td></tr> : ledger.map((r) => (
+                {ledger.length === 0 ? <tr><td colSpan={lotTrackingEnabled ? 9 : 8} className="text-center text-muted py-4">No records.</td></tr> : ledger.map((r) => (
                   <tr key={r.id}>
                     <td>{String(r.txn_date || "").replace("T", " ").slice(0, 16)}</td>
                     <td>{r.product_sku || "-"}</td>
                     <td>{r.product_name}</td>
                     <td>{r.warehouse_name}</td>
-                    <td className="text-uppercase">{r.txn_type}</td>
+                    <td>
+                      <span className={getStatusBadgeClass(r.txn_type, "stock_txn")}>
+                        {formatStatusLabel(r.txn_type)}
+                      </span>
+                    </td>
                     <td className="text-end">{Number(r.quantity || 0).toFixed(2)}</td>
                     <td className="text-end">{Number(r.unit_cost || 0).toFixed(2)}</td>
-                    <td>{r.lot_number || "-"}</td>
+                    {lotTrackingEnabled && <td>{r.lot_number || "-"}</td>}
                     <td>{r.reference_type || "manual"}{r.reference_id ? ` #${r.reference_id}` : ""}</td>
                   </tr>
                 ))}
@@ -207,7 +262,7 @@ const Reports = () => {
         </div>
       )}
 
-      {activeTab === "expiry" && (
+      {activeTab === "expiry" && expiryEnabled && (
         <div className="card border-0 shadow-sm">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h6 className="mb-0">Expiry Tracking ({expiry.length})</h6>
@@ -215,7 +270,7 @@ const Reports = () => {
           </div>
           <div className="table-responsive">
             <table className="table table-sm table-striped mb-0 align-middle">
-              <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th>Lot</th><th>Expiry</th><th className="text-end">Days Left</th><th className="text-end">Qty</th></tr></thead>
+              <thead><tr><th>SKU</th><th>Product</th><th>Warehouse</th><th>{lotLabel}</th><th>Expiry</th><th className="text-end">Days Left</th><th className="text-end">Qty</th></tr></thead>
               <tbody>
                 {expiry.length === 0 ? <tr><td colSpan={7} className="text-center text-muted py-4">No lots with expiry found.</td></tr> : expiry.map((r) => (
                   <tr key={r.id}>

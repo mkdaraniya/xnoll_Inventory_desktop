@@ -70,6 +70,12 @@ ipcMain.handle("stockMovements:create", async (_event, payload) => {
 });
 
 ipcMain.handle("warehouses:list", async () => db.listWarehouses());
+ipcMain.handle("inventory:options:products", async (_event, payload) =>
+  db.listProductOptions(payload || {})
+);
+ipcMain.handle("inventory:options:warehouses", async (_event, payload) =>
+  db.listWarehouseOptions(payload || {})
+);
 ipcMain.handle("warehouses:query", async (_event, payload) => {
   try {
     return { success: true, ...db.queryWarehouses(payload || {}) };
@@ -126,16 +132,16 @@ ipcMain.handle("inventory:reorder:upsert", async (_event, payload) => {
   }
 });
 
-ipcMain.handle("inventory:stock:summary", async () =>
-  db.getWarehouseStockSummary()
+ipcMain.handle("inventory:stock:summary", async (_event, filters) =>
+  db.getWarehouseStockSummary(filters || {})
 );
 
 ipcMain.handle("inventory:lots:list", async (_event, filters) =>
   db.getLots(filters || {})
 );
 
-ipcMain.handle("inventory:alerts:reorder", async () =>
-  db.getReorderAlerts()
+ipcMain.handle("inventory:alerts:reorder", async (_event, filters) =>
+  db.getReorderAlerts(filters || {})
 );
 
 ipcMain.handle("inventory:ledger:list", async (_event, filters) =>
@@ -149,8 +155,10 @@ ipcMain.handle("inventory:ledger:query", async (_event, filters) => {
   }
 });
 
-ipcMain.handle("inventory:report:valuation", async () =>
-  db.getInventoryValuationReport()
+ipcMain.handle("inventory:report:valuation", async (_event, filters) =>
+  db.getInventoryValuationReport(filters || {})
 );
 
-ipcMain.handle("inventory:report:expiry", async () => db.getExpiryReport());
+ipcMain.handle("inventory:report:expiry", async (_event, filters) =>
+  db.getExpiryReport(filters || {})
+);

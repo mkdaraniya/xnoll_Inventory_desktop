@@ -1,12 +1,38 @@
 import React, { useEffect, useMemo, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
 import Pagination from "../../components/common/Pagination";
+import UnifiedLoader from "../../components/common/UnifiedLoader";
+import {
+  deserializeCustomFieldValue,
+  formatCustomFieldDisplayValue,
+  serializeCustomFieldValue,
+} from "../../utils/customFields";
+import {
+  confirmAction,
+  ensureSuccess,
+  notifyError,
+  notifySuccess,
+} from "../../utils/feedback";
 import { formatCurrency } from "../../utils/format";
-import { ensureSuccess, notifyError } from "../../utils/feedback";
 import { isNonNegativeNumber, validateRequiredFields } from "../../utils/validation";
 
-const emptyForm = { id: null, sku: "", name: "", unit: "", price: "" };
+const emptyForm = { id: null, sku: "", name: "", unit: "", price: "", default_tax_id: "" };
 const PAGE_SIZE = 10;
+const DEFAULT_UNIT_OPTIONS = [
+  "pcs",
+  "box",
+  "kg",
+  "g",
+  "ltr",
+  "ml",
+  "m",
+  "sqft",
+  "hr",
+  "day",
+  "service",
+];
+const buildGeneratedCode = (prefix = "SKU") =>
+  `${String(prefix || "SKU").trim().toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -20,6 +46,7 @@ const Products = () => {
     auto_generate_sku: 1,
     sku_prefix: "SKU",
   });
+  const [taxRates, setTaxRates] = useState([]);
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -30,12 +57,20 @@ const Products = () => {
   const [totalPages, setTotalPages] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
+  const unitOptions = useMemo(() => {
+    const dynamicUnits = products
+      .map((p) => String(p.unit || "").trim())
+      .filter(Boolean);
+    const currentUnit = String(form.unit || "").trim();
+    const allUnits = [...DEFAULT_UNIT_OPTIONS, ...dynamicUnits, currentUnit].filter(Boolean);
+    return [...new Set(allUnits)];
+  }, [products, form.unit]);
 
   const loadProducts = async () => {
     if (!window.xnoll) return;
     setLoading(true);
     try {
-      const [res, fields, settingsRes] = await Promise.all([
+      const [res, fields, settingsRes, taxRes] = await Promise.all([
         window.xnoll.productsQuery({
           page,
           pageSize,
@@ -45,6 +80,7 @@ const Products = () => {
         }),
         window.xnoll.customFieldsList("products"),
         window.xnoll.settingsGet(),
+        window.xnoll.taxRatesList(),
       ]);
 
       ensureSuccess(res, "Unable to load products.");
@@ -52,6 +88,7 @@ const Products = () => {
       setTotal(Number(res.total || 0));
       setTotalPages(Number(res.totalPages || 1));
       setCustomFields(fields || []);
+      setTaxRates(taxRes?.rows || []);
       if (settingsRes?.success && settingsRes.settings) {
         setSettings((prev) => ({ ...prev, ...settingsRes.settings }));
         setCurrency(settingsRes.settings.currency || "INR");
@@ -98,12 +135,30 @@ const Products = () => {
   };
 
   const openNewModal = () => {
+    const defaultTax = (taxRates || []).find((t) => Number(t.is_default) === 1 && Number(t.is_active) === 1);
     resetForm();
     setShowModal(true);
-    // Auto-generate SKU if enabled
-    if (settings.auto_generate_sku && window.xnoll) {
+    if (defaultTax) {
+      setForm((prev) => ({ ...prev, default_tax_id: String(defaultTax.id) }));
+    }
+    const fallbackSku = buildGeneratedCode(settings.sku_prefix || "SKU");
+    setForm((prev) => ({ ...prev, sku: fallbackSku }));
+    window.xnoll
+      ?.skuGenerate?.({ prefix: settings.sku_prefix || "SKU", name: "" })
+      .then((resp) => {
+        if (resp?.sku) {
+          setForm((prev) => ({ ...prev, sku: resp.sku }));
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "name" && !isEditing) {
       window.xnoll
-        .skuGenerate(settings.sku_prefix || "SKU")
+        ?.skuGenerate?.({ prefix: settings.sku_prefix || "SKU", name: value })
         .then((resp) => {
           if (resp?.sku) {
             setForm((prev) => ({ ...prev, sku: resp.sku }));
@@ -113,32 +168,17 @@ const Products = () => {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    if (name === "name" && settings.auto_generate_sku && !form.sku) {
-      const trimmed = value.trim();
-      if (trimmed.length >= 2 && window.xnoll) {
-        window.xnoll
-          .skuGenerate(settings.sku_prefix || "SKU")
-          .then((resp) => {
-            if (resp?.sku) setForm((prev) => ({ ...prev, sku: resp.sku }));
-          })
-          .catch(() => {});
-      }
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!window.xnoll) return;
 
     const payload = {
       id: form.id,
-      sku: form.sku.trim(),
+      sku: String(form.sku || buildGeneratedCode(settings.sku_prefix || "SKU")).trim(),
       name: form.name.trim(),
       unit: form.unit.trim(),
       price: parseFloat(form.price || "0") || 0,
+      default_tax_id: form.default_tax_id ? Number(form.default_tax_id) : null,
     };
 
     const requiredError = validateRequiredFields({ name: payload.name }, { name: "Name" });
@@ -160,11 +200,12 @@ const Products = () => {
       if (customFields.length > 0 && productId) {
         for (const field of customFields) {
           const value = customFieldValues[field.name];
-          if (value !== undefined && value !== "") {
+          const serializedValue = serializeCustomFieldValue(field, value);
+          if (serializedValue !== "") {
             await window.xnoll.customFieldValuesSave({
               field_id: field.id,
               record_id: productId,
-              value: String(value),
+              value: serializedValue,
             });
           }
         }
@@ -173,6 +214,7 @@ const Products = () => {
       resetForm();
       setShowModal(false);
       await loadProducts();
+      notifySuccess(isEditing ? "Product updated successfully." : "Product created successfully.");
     } catch (error) {
       notifyError(error, "Unable to save product.");
     } finally {
@@ -187,6 +229,7 @@ const Products = () => {
       name: p.name || "",
       unit: p.unit || "",
       price: p.price != null ? String(p.price) : "",
+      default_tax_id: p.default_tax_id ? String(p.default_tax_id) : "",
     });
 
     // Load custom field values for this product
@@ -199,12 +242,12 @@ const Products = () => {
             p.id
           );
           if (result && result.value !== undefined) {
-            values[field.name] = result.value;
+            values[field.name] = deserializeCustomFieldValue(field, result.value);
           }
         }
         setCustomFieldValues(values);
       } catch (err) {
-        console.error("Failed to load custom field values:", err);
+        notifyError(err, "Unable to load custom field values.");
       }
     }
 
@@ -214,12 +257,18 @@ const Products = () => {
 
   const handleDelete = async (id) => {
     if (!window.xnoll) return;
-    if (!window.confirm("Delete this product?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete product?",
+      text: "This product will be removed permanently.",
+      confirmButtonText: "Delete",
+    });
+    if (!confirmed) return;
 
     setLoading(true);
     try {
       ensureSuccess(await window.xnoll.productsDelete(id), "Unable to delete product.");
       await loadProducts();
+      notifySuccess("Product deleted successfully.");
     } catch (error) {
       notifyError(error, "Unable to delete product.");
     } finally {
@@ -265,7 +314,7 @@ const Products = () => {
 
       <div className="card shadow-sm border-0">
         <div className="card-body">
-          {loading && <div className="text-muted small mb-2">Loading...</div>}
+          <UnifiedLoader show={loading} text="Loading products..." />
           <div className="table-responsive" style={{ maxHeight: "60vh" }}>
             <table className="table table-sm table-striped align-middle">
               <thead className="table-light">
@@ -295,6 +344,7 @@ const Products = () => {
                   >
                     Price {sortIcon("price")}
                   </th>
+                  <th style={{ width: "160px" }}>Default Tax</th>
                   {(Array.isArray(customFields)
                     ? customFields.filter((f) => f.display_in_grid)
                     : []
@@ -320,12 +370,21 @@ const Products = () => {
                     <td>{p.name}</td>
                     <td>{p.unit}</td>
                     <td>{formatCurrency(p.price, currency)}</td>
+                    <td>
+                      {(() => {
+                        const tax = (taxRates || []).find((t) => Number(t.id) === Number(p.default_tax_id || 0));
+                        return tax ? `${tax.name} (${Number(tax.rate || 0).toFixed(2)}%)` : "-";
+                      })()}
+                    </td>
                     {(Array.isArray(customFields)
                       ? customFields.filter((f) => f.display_in_grid)
                       : []
                     ).map((f) => (
                       <td key={f.id}>
-                        {p.custom_fields?.[f.name] ?? f.default_value ?? "-"}
+                        {formatCustomFieldDisplayValue(
+                          f,
+                          p.custom_fields?.[f.name] ?? f.default_value
+                        )}
                       </td>
                     ))}
                     <td className="text-end">
@@ -350,7 +409,7 @@ const Products = () => {
                   <tr>
                     <td
                       colSpan={
-                        6 +
+                        7 +
                         (Array.isArray(customFields)
                           ? customFields.filter((f) => f.display_in_grid)
                           : []
@@ -379,8 +438,7 @@ const Products = () => {
           />
 
           <small className="text-muted d-block mt-2">
-            Product master stored locally in SQLite and used across inventory flows
-            & Invoices.
+            Product master is used across inventory and invoice workflows.
           </small>
         </div>
       </div>
@@ -423,8 +481,8 @@ const Products = () => {
                         className="form-control form-control-sm"
                         name="sku"
                         value={form.sku}
-                        onChange={handleChange}
-                        disabled={loading}
+                        disabled
+                        readOnly
                       />
                     </div>
                     <div className="mb-2">
@@ -441,15 +499,20 @@ const Products = () => {
                     </div>
                     <div className="mb-2">
                       <label className="form-label mb-0 small">Unit</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
+                      <select
+                        className="form-select form-select-sm"
                         name="unit"
-                        placeholder="pcs / hr / service"
                         value={form.unit}
                         onChange={handleChange}
                         disabled={loading}
-                      />
+                      >
+                        <option value="">Select unit</option>
+                        {unitOptions.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="mb-0">
                       <label className="form-label mb-0 small">Price</label>
@@ -462,6 +525,25 @@ const Products = () => {
                         onChange={handleChange}
                         disabled={loading}
                       />
+                    </div>
+                    <div className="mt-2">
+                      <label className="form-label mb-0 small">Default Tax</label>
+                      <select
+                        className="form-select form-select-sm"
+                        name="default_tax_id"
+                        value={form.default_tax_id || ""}
+                        onChange={handleChange}
+                        disabled={loading}
+                      >
+                        <option value="">No default tax</option>
+                        {(taxRates || [])
+                          .filter((t) => Number(t.is_active) === 1)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({Number(t.rate || 0).toFixed(2)}%)
+                            </option>
+                          ))}
+                      </select>
                     </div>
                     {/* Place Custom Fields here */}
                     {customFields.length > 0 && (

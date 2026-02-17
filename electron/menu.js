@@ -1,7 +1,5 @@
 const { Menu, shell, BrowserWindow, dialog } = require("electron");
 
-const isDev = process.env.NODE_ENV === "development";
-
 const nav = (page, extraType = null) => {
   const win = BrowserWindow.getAllWindows()[0];
   if (!win) return;
@@ -45,16 +43,6 @@ const template = [
       { label: "Reports", accelerator: "CmdOrCtrl+7", click: () => nav("reports") },
       { type: "separator" },
       { role: "reload", label: "Reload", accelerator: "CmdOrCtrl+R" },
-      ...(isDev
-        ? [
-            { type: "separator" },
-            {
-              role: "toggledevtools",
-              label: "Toggle DevTools",
-              accelerator: "CmdOrCtrl+Shift+I",
-            },
-          ]
-        : []),
     ],
   },
   {
@@ -83,12 +71,12 @@ const template = [
       },
       { type: "separator" },
       {
-        label: "About Xnoll Inventory Desktop",
+        label: "About Xnoll Inventory Pro",
         click: () => {
           dialog.showMessageBox({
             type: "info",
-            title: "About Xnoll Inventory Desktop",
-            message: "Xnoll Inventory Desktop",
+            title: "About Xnoll Inventory Pro",
+            message: "Xnoll Inventory Pro",
             detail:
               "Version: 1.0.0\nOffline-first inventory management system\n\n© 2026 Xnoll. All rights reserved.",
             buttons: ["OK"],

@@ -36,3 +36,27 @@ ipcMain.handle('invoices:delete', async (_event, id) => {
 ipcMain.handle("invoices:getById", async (_event, id) => {
   return db.getInvoiceById(id);
 });
+
+ipcMain.handle("invoices:payments:list", async (_event, invoiceId) => {
+  try {
+    return { success: true, rows: db.getInvoicePayments(invoiceId) || [] };
+  } catch (err) {
+    return { success: false, error: err.message, rows: [] };
+  }
+});
+
+ipcMain.handle("invoices:payments:create", async (_event, payload) => {
+  try {
+    return { success: true, ...db.createInvoicePayment(payload || {}) };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("invoices:payments:delete", async (_event, paymentId) => {
+  try {
+    return { success: true, ...db.deleteInvoicePayment(paymentId) };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});

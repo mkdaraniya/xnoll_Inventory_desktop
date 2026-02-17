@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import Button from '../../components/common/Button';
-import { notifyError } from '../../utils/feedback';
+import { ensureSuccess, notifyError, notifySuccess } from '../../utils/feedback';
 import { isNonNegativeNumber } from '../../utils/validation';
 
 const TaxSettings = () => {
   const [form, setForm] = useState({
     enable_tax: 1,
+    tax_scheme: 'simple',
     default_tax_name: 'GST',
     default_tax_rate: 0,
     default_tax_mode: 'exclusive',
+    default_gst_tax_type: 'intra',
+    cgst_label: 'CGST',
+    sgst_label: 'SGST',
+    igst_label: 'IGST',
     invoice_prefix: 'INV',
     invoice_terms: '',
     invoice_footer: 'Thank you for your business!',
@@ -21,7 +26,6 @@ const TaxSettings = () => {
     invoice_decimal_places: 2,
   });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const loadSettings = async () => {
     if (!window.xnoll) return;
@@ -56,25 +60,38 @@ const TaxSettings = () => {
 
     const taxRate = Number(form.default_tax_rate || 0);
     if (!isNonNegativeNumber(taxRate)) {
-      setMessage('Tax rate must be 0 or greater.');
-      return;
+      return notifyError('Tax rate must be 0 or greater.');
     }
+
+    if (!String(form.cgst_label || '').trim()) return notifyError('CGST label is required.');
+    if (!String(form.sgst_label || '').trim()) return notifyError('SGST label is required.');
+    if (!String(form.igst_label || '').trim()) return notifyError('IGST label is required.');
 
     const decimalPlaces = Number(form.invoice_decimal_places || 2);
     if (!Number.isInteger(decimalPlaces) || decimalPlaces < 0 || decimalPlaces > 4) {
-      setMessage('Decimal places must be between 0 and 4.');
-      return;
+      return notifyError('Decimal places must be between 0 and 4.');
     }
 
     setLoading(true);
-    setMessage('');
     try {
-      const res = await window.xnoll.settingsSave(form);
-      if (res?.success) setMessage('Saved');
-      else setMessage(res?.error || 'Save failed');
+      const payload = {
+        ...form,
+        default_tax_name: String(form.default_tax_name || '').trim(),
+        tax_scheme: String(form.tax_scheme || 'simple').trim(),
+        invoice_prefix: String(form.invoice_prefix || '').trim(),
+        invoice_terms: String(form.invoice_terms || '').trim(),
+        invoice_footer: String(form.invoice_footer || '').trim(),
+        default_tax_rate: Number(form.default_tax_rate || 0),
+        default_gst_tax_type: String(form.default_gst_tax_type || 'intra').trim(),
+        cgst_label: String(form.cgst_label || '').trim(),
+        sgst_label: String(form.sgst_label || '').trim(),
+        igst_label: String(form.igst_label || '').trim(),
+        invoice_decimal_places: Number(form.invoice_decimal_places || 2),
+      };
+      ensureSuccess(await window.xnoll.settingsSave(payload), 'Unable to save tax settings.');
+      notifySuccess('Tax settings saved successfully.');
     } catch (err) {
       notifyError(err, 'Unable to save tax settings.');
-      setMessage('Save failed');
     } finally {
       setLoading(false);
     }
@@ -84,7 +101,7 @@ const TaxSettings = () => {
     <form onSubmit={handleSubmit} className="card shadow-sm border-0">
       <div className="card-body">
         <h6 className="mb-3">Tax</h6>
-        <div className="form-check form-switch mb-3">
+        <div className="form-check form-switch ui-switch mb-3">
           <input
             className="form-check-input"
             type="checkbox"
@@ -99,8 +116,22 @@ const TaxSettings = () => {
         </div>
 
         <div className="row g-3 mb-3">
+          <div className="col-md-3">
+            <label className="form-label small mb-0">Tax Scheme</label>
+            <select
+              className="form-select form-select-sm"
+              name="tax_scheme"
+              value={form.tax_scheme || 'simple'}
+              onChange={handleChange}
+            >
+              <option value="simple">Simple Tax</option>
+              <option value="gst_india">India GST (CGST/SGST/IGST)</option>
+            </select>
+          </div>
           <div className="col-md-4">
-            <label className="form-label small mb-0">Tax Name</label>
+            <label className="form-label small mb-0">
+              {form.tax_scheme === 'gst_india' ? 'Tax Name (Display)' : 'Tax Name'}
+            </label>
             <input
               className="form-control form-control-sm"
               name="default_tax_name"
@@ -109,8 +140,10 @@ const TaxSettings = () => {
               placeholder="GST"
             />
           </div>
-          <div className="col-md-4">
-            <label className="form-label small mb-0">Tax Rate (%)</label>
+          <div className="col-md-3">
+            <label className="form-label small mb-0">
+              {form.tax_scheme === 'gst_india' ? 'GST Rate (%)' : 'Tax Rate (%)'}
+            </label>
             <input
               type="number"
               min="0"
@@ -121,7 +154,7 @@ const TaxSettings = () => {
               onChange={handleChange}
             />
           </div>
-          <div className="col-md-4">
+          <div className="col-md-2">
             <label className="form-label small mb-0">Tax Mode</label>
             <select
               className="form-select form-select-sm"
@@ -135,6 +168,50 @@ const TaxSettings = () => {
             </select>
           </div>
         </div>
+
+        {form.tax_scheme === 'gst_india' && (
+          <div className="row g-3 mb-3">
+            <div className="col-md-3">
+              <label className="form-label small mb-0">Default GST Type</label>
+              <select
+                className="form-select form-select-sm"
+                name="default_gst_tax_type"
+                value={form.default_gst_tax_type || 'intra'}
+                onChange={handleChange}
+              >
+                <option value="intra">Intra-state (CGST + SGST)</option>
+                <option value="inter">Inter-state (IGST)</option>
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small mb-0">CGST Label</label>
+              <input
+                className="form-control form-control-sm"
+                name="cgst_label"
+                value={form.cgst_label || 'CGST'}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small mb-0">SGST Label</label>
+              <input
+                className="form-control form-control-sm"
+                name="sgst_label"
+                value={form.sgst_label || 'SGST'}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small mb-0">IGST Label</label>
+              <input
+                className="form-control form-control-sm"
+                name="igst_label"
+                value={form.igst_label || 'IGST'}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+        )}
 
         <hr />
         <h6 className="mb-3">Invoice</h6>
@@ -187,7 +264,7 @@ const TaxSettings = () => {
 
         <div className="row g-2 mb-2">
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -200,7 +277,7 @@ const TaxSettings = () => {
             </div>
           </div>
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -213,7 +290,7 @@ const TaxSettings = () => {
             </div>
           </div>
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -226,7 +303,7 @@ const TaxSettings = () => {
             </div>
           </div>
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -239,7 +316,7 @@ const TaxSettings = () => {
             </div>
           </div>
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -252,7 +329,7 @@ const TaxSettings = () => {
             </div>
           </div>
           <div className="col-md-4">
-            <div className="form-check">
+            <div className="form-check form-switch ui-switch">
               <input
                 className="form-check-input"
                 type="checkbox"
@@ -265,8 +342,6 @@ const TaxSettings = () => {
             </div>
           </div>
         </div>
-
-        {message && <div className="alert alert-info py-2">{message}</div>}
 
         <div className="d-flex justify-content-end">
           <Button variant="primary" type="submit" disabled={loading} size="sm">

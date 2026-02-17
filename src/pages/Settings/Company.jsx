@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Button from '../../components/common/Button';
-import { notifyError } from '../../utils/feedback';
+import { ensureSuccess, notifyError, notifySuccess } from '../../utils/feedback';
 import { isValidEmail, isValidGSTIN, isValidPAN, isValidPhone } from '../../utils/validation';
 
 const empty = {
@@ -30,7 +30,6 @@ const empty = {
 const CompanySettings = () => {
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const loadCompany = async () => {
     if (!window.xnoll) return;
@@ -74,27 +73,38 @@ const CompanySettings = () => {
 
     const validationMessage = validateForm();
     if (validationMessage) {
-      setMessage(validationMessage);
-      return;
+      return notifyError(validationMessage);
     }
 
     setLoading(true);
-    setMessage('');
     try {
       const payload = {
         ...form,
+        name: String(form.name || '').trim(),
+        legal_name: String(form.legal_name || '').trim(),
+        contact_person: String(form.contact_person || '').trim(),
+        phone: String(form.phone || '').trim(),
+        email: String(form.email || '').trim(),
+        website: String(form.website || '').trim(),
+        tax_id: String(form.tax_id || '').trim(),
+        state_code: String(form.state_code || '').trim(),
+        business_registration_no: String(form.business_registration_no || '').trim(),
+        address: String(form.address || '').trim(),
+        city: String(form.city || '').trim(),
+        state: String(form.state || '').trim(),
+        postal_code: String(form.postal_code || '').trim(),
+        country: String(form.country || '').trim(),
+        bank_name: String(form.bank_name || '').trim(),
+        bank_account_number: String(form.bank_account_number || '').trim(),
+        bank_ifsc: String(form.bank_ifsc || '').trim(),
+        bank_branch: String(form.bank_branch || '').trim(),
         gstin: String(form.gstin || '').trim().toUpperCase(),
         pan: String(form.pan || '').trim().toUpperCase(),
       };
-      const res = await window.xnoll.companySave(payload);
-      if (res?.success) {
-        setMessage('Company details saved.');
-      } else {
-        setMessage(res?.error || 'Save failed');
-      }
+      ensureSuccess(await window.xnoll.companySave(payload), 'Unable to save company details.');
+      notifySuccess('Company details saved successfully.');
     } catch (err) {
       notifyError(err, 'Unable to save company details.');
-      setMessage('Save failed');
     } finally {
       setLoading(false);
     }
@@ -299,8 +309,6 @@ const CompanySettings = () => {
             />
           </div>
         </div>
-
-        {message && <div className="alert alert-info py-2 mt-3">{message}</div>}
 
         <div className="d-flex justify-content-end mt-2">
           <Button variant="primary" type="submit" disabled={loading} size="sm">

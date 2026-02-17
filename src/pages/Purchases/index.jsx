@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Pagination from "../../components/common/Pagination";
-import { ensureSuccess, notifyError } from "../../utils/feedback";
+import UnifiedLoader from "../../components/common/UnifiedLoader";
+import {
+  confirmAction,
+  ensureSuccess,
+  notifyError,
+  notifySuccess,
+} from "../../utils/feedback";
+import { formatStatusLabel, getStatusBadgeClass } from "../../utils/status";
 import { isNonNegativeNumber, isPositiveNumber } from "../../utils/validation";
 
 const emptyItem = { product_id: "", qty: "1", unit_cost: "0", description: "" };
@@ -16,6 +23,7 @@ const emptyForm = {
 };
 
 const statusOptions = ["draft", "ordered", "partial", "received", "cancelled"];
+const buildPoNumber = () => `PO-${Date.now().toString(36).toUpperCase()}`;
 
 const Purchases = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -61,7 +69,7 @@ const Purchases = () => {
   }, [page, pageSize, search, sortKey, sortDir]);
 
   const resetForm = () => {
-    setForm({ ...emptyForm, items: [{ ...emptyItem }] });
+    setForm({ ...emptyForm, po_number: buildPoNumber(), items: [{ ...emptyItem }] });
     setIsEditing(false);
   };
 
@@ -91,6 +99,10 @@ const Purchases = () => {
 
   const validate = () => {
     if (!form.order_date) return "Order date is required.";
+    if (!form.supplier_id) return "Supplier is required.";
+    if (form.expected_date && form.expected_date < form.order_date) {
+      return "Expected date cannot be earlier than order date.";
+    }
     if (!form.items.length) return "Add at least one item.";
     for (const item of form.items) {
       if (!item.product_id) return "Every row must have a product.";
@@ -127,12 +139,18 @@ const Purchases = () => {
 
   const handleDelete = async (id) => {
     if (!window.xnoll) return;
-    if (!window.confirm("Delete this purchase order?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete purchase order?",
+      text: "This purchase order will be removed permanently.",
+      confirmButtonText: "Delete",
+    });
+    if (!confirmed) return;
 
     setLoading(true);
     try {
       ensureSuccess(await window.xnoll.purchaseOrdersDelete(id), "Unable to delete purchase order.");
       await loadData();
+      notifySuccess("Purchase order deleted successfully.");
     } catch (error) {
       notifyError(error, "Unable to delete purchase order.");
     } finally {
@@ -149,7 +167,7 @@ const Purchases = () => {
 
     const payload = {
       id: form.id,
-      po_number: form.po_number.trim(),
+      po_number: String(form.po_number || buildPoNumber()).trim(),
       supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
       order_date: form.order_date,
       expected_date: form.expected_date || null,
@@ -173,6 +191,7 @@ const Purchases = () => {
       setShowModal(false);
       resetForm();
       await loadData();
+      notifySuccess(isEditing ? "Purchase order updated successfully." : "Purchase order created successfully.");
     } catch (error) {
       notifyError(error, "Unable to save purchase order.");
     } finally {
@@ -200,6 +219,7 @@ const Purchases = () => {
         </div>
         <button className="btn btn-primary" onClick={openCreate}>+ New Purchase Order</button>
       </div>
+      <UnifiedLoader show={loading} text="Loading purchase orders..." />
 
       <div className="card border-0 shadow-sm mb-3">
         <div className="card-body d-flex gap-2">
@@ -230,7 +250,11 @@ const Purchases = () => {
                     <td className="fw-semibold">{po.po_number || `PO-${po.id}`}</td>
                     <td>{po.supplier_name || "-"}</td>
                     <td>{po.order_date || "-"}</td>
-                    <td><span className="badge bg-info text-dark text-uppercase">{po.status || "draft"}</span></td>
+                    <td>
+                      <span className={getStatusBadgeClass(po.status || "draft", "purchase")}>
+                        {formatStatusLabel(po.status || "draft")}
+                      </span>
+                    </td>
                     <td>{Number(po.total_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="text-end">
                       <button className="btn btn-sm btn-outline-primary me-2" onClick={() => openEdit(po)}>Edit</button>
@@ -264,7 +288,7 @@ const Purchases = () => {
                 <div className="modal-header"><h5 className="modal-title">{isEditing ? "Edit Purchase Order" : "New Purchase Order"}</h5><button type="button" className="btn-close" onClick={() => setShowModal(false)}></button></div>
                 <div className="modal-body">
                   <div className="row g-3 mb-3">
-                    <div className="col-md-3"><label className="form-label">PO Number</label><input className="form-control" value={form.po_number} onChange={(e) => setForm((prev) => ({ ...prev, po_number: e.target.value }))} /></div>
+                    <div className="col-md-3"><label className="form-label">PO Number</label><input className="form-control" value={form.po_number} disabled readOnly /></div>
                     <div className="col-md-3"><label className="form-label">Supplier</label><select className="form-select" value={form.supplier_id} onChange={(e) => setForm((prev) => ({ ...prev, supplier_id: e.target.value }))}><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
                     <div className="col-md-2"><label className="form-label">Order Date *</label><input type="date" className="form-control" value={form.order_date} onChange={(e) => setForm((prev) => ({ ...prev, order_date: e.target.value }))} /></div>
                     <div className="col-md-2"><label className="form-label">Expected Date</label><input type="date" className="form-control" value={form.expected_date} onChange={(e) => setForm((prev) => ({ ...prev, expected_date: e.target.value }))} /></div>

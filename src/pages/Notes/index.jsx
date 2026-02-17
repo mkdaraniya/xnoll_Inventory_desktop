@@ -3,7 +3,14 @@ import SearchBar from '../../components/common/SearchBar';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
-import { ensureSuccess, notifyError } from '../../utils/feedback';
+import UnifiedLoader from '../../components/common/UnifiedLoader';
+import {
+  confirmAction,
+  ensureSuccess,
+  notifyError,
+  notifySuccess,
+} from '../../utils/feedback';
+import { getStatusBadgeClass } from '../../utils/status';
 import { validateRequiredFields } from '../../utils/validation';
 
 const emptyForm = {
@@ -66,6 +73,7 @@ const NotesPage = () => {
     try {
       const payload = {
         ...form,
+        title: form.title.trim(),
         is_pinned: form.is_pinned ? 1 : 0,
         tags: form.tags.trim(),
         content: form.content.trim(),
@@ -79,6 +87,7 @@ const NotesPage = () => {
       setShowModal(false);
       setForm(emptyForm);
       setIsEditing(false);
+      notifySuccess(isEditing ? 'Note updated successfully.' : 'Note created successfully.');
     } catch (err) {
       notifyError(err, 'Unable to save note.');
     } finally {
@@ -88,11 +97,17 @@ const NotesPage = () => {
 
   const handleDelete = async (id) => {
     if (!window.xnoll) return;
-    if (!window.confirm('Delete this note?')) return;
+    const confirmed = await confirmAction({
+      title: 'Delete note?',
+      text: 'This note will be deleted permanently.',
+      confirmButtonText: 'Delete',
+    });
+    if (!confirmed) return;
     setLoading(true);
     try {
       ensureSuccess(await window.xnoll.notesDelete(id), 'Unable to delete note.');
       await loadNotes();
+      notifySuccess('Note deleted successfully.');
     } catch (error) {
       notifyError(error, 'Unable to delete note.');
     } finally {
@@ -136,6 +151,7 @@ const NotesPage = () => {
           </Button>
         </div>
       </div>
+      <UnifiedLoader show={loading} text="Loading notes..." />
 
       <div className="row g-3">
         {sortedView.map((note) => (
@@ -147,7 +163,7 @@ const NotesPage = () => {
                     <h6 className="mb-1">
                       {note.title}{' '}
                       {note.is_pinned ? (
-                        <span className="badge bg-warning text-dark ms-2">Pinned</span>
+                        <span className={`${getStatusBadgeClass("pinned", "note")} ms-2`}>Pinned</span>
                       ) : null}
                     </h6>
                     {note.tags ? (
@@ -203,7 +219,7 @@ const NotesPage = () => {
             <label className="form-label small mb-0">Tags (comma separated)</label>
             <input className="form-control form-control-sm" value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} placeholder="e.g. followup,priority" />
           </div>
-          <div className="form-check mb-3">
+          <div className="form-check form-switch ui-switch mb-3">
             <input className="form-check-input" type="checkbox" id="notePin" checked={!!form.is_pinned} onChange={(e) => setForm((f) => ({ ...f, is_pinned: e.target.checked }))} />
             <label className="form-check-label" htmlFor="notePin">Pin this note</label>
           </div>

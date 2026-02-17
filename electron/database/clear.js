@@ -23,6 +23,7 @@ const deleteOrder = [
   "purchase_orders",
   "suppliers",
   "custom_field_values",
+  "invoice_payments",
   "invoice_items",
   "invoices",
   "products",

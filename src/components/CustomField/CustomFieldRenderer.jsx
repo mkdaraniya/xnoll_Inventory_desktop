@@ -1,4 +1,8 @@
 import React from 'react';
+import {
+  deserializeCustomFieldValue,
+  parseCustomFieldOptions,
+} from "../../utils/customFields";
 
 const CustomFieldRenderer = ({
   fields = [],
@@ -6,14 +10,6 @@ const CustomFieldRenderer = ({
   onChange,            // function (fieldName, value)
   loading = false
 }) => {
-
-  // parse comma or newline separated options
-  const parseOptions = (optionsString = '') => {
-    return optionsString
-      .split(/[\n,]/)
-      .map(opt => opt.trim())
-      .filter(Boolean);
-  };
 
   // Handler invoked from inputs
   const handleFieldChange = (fieldName, value) => {
@@ -24,7 +20,9 @@ const CustomFieldRenderer = ({
 
   // read value from the controlled prop; only use default if undefined
   const getValue = (field) => {
-    return values[field.name] !== undefined ? values[field.name] : (field.default_value ?? '');
+    const sourceValue =
+      values[field.name] !== undefined ? values[field.name] : (field.default_value ?? '');
+    return deserializeCustomFieldValue(field, sourceValue);
   };
 
   if (!fields || fields.length === 0) return null;
@@ -82,7 +80,7 @@ const CustomFieldRenderer = ({
                 style={{ minHeight: '38px' }}
               >
                 <option value="">Select {field.label.toLowerCase()}</option>
-                {parseOptions(field.options).map((option, idx) => (
+                {parseCustomFieldOptions(field.options).map((option, idx) => (
                   <option key={idx} value={option}>
                     {option}
                   </option>
@@ -90,12 +88,18 @@ const CustomFieldRenderer = ({
               </select>
             )}
 
+            {field.type === 'multiselect' && (
+              <div className="small text-muted">
+                Multiselect field is temporarily disabled.
+              </div>
+            )}
+
             {field.type === 'file' && (
               <small className="text-muted">File upload not yet implemented</small>
             )}
 
             {/* fallback for unknown types */}
-            {!['text','number','date','select','file'].includes(field.type) && (
+            {!['text','number','date','select','multiselect','file'].includes(field.type) && (
               <input
                 type="text"
                 className="form-control"

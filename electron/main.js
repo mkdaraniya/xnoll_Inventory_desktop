@@ -18,8 +18,8 @@ require("./ipc/reports.ipc");
 require("./ipc/company.ipc");
 require("./ipc/error.ipc");
 require("./ipc/sku.ipc");
+require("./ipc/tax.ipc");
 require("./ipc/print.ipc");
-require("./ipc/seeder.ipc");
 require("./ipc/inventory.ipc");
 
 const isDev = process.env.NODE_ENV === "development";
@@ -52,7 +52,6 @@ function registerGlobalShortcuts() {
 function createMainWindowIfNeeded() {
   if (BrowserWindow.getAllWindows().length === 0) {
     mainWindow = createMainWindow(isDev);
-    if (isDev) mainWindow.webContents.openDevTools({ mode: "detach" });
   }
 }
 
@@ -60,7 +59,6 @@ function startApp() {
   Menu.setApplicationMenu(appMenu);
 
   mainWindow = createMainWindow(isDev);
-  if (isDev) mainWindow.webContents.openDevTools({ mode: "detach" });
   // And your explicit shortcuts (optional)
   registerGlobalShortcuts();
 }

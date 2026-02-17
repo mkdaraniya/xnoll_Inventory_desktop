@@ -29,7 +29,7 @@ const LanguageSettings = () => {
           ))}
         </div>
         <small className="text-muted d-block mt-3">
-          Language is stored locally and applied instantly.
+          Language preference is applied instantly across the app.
         </small>
       </div>
     </div>
@@ -37,4 +37,3 @@ const LanguageSettings = () => {
 };
 
 export default LanguageSettings;
-

@@ -17,11 +17,14 @@ import Warehouses from "./pages/Warehouses/index.jsx";
 
 const AppContent = () => {
   const [activePage, setActivePage] = useState("dashboard");
-  const env = import.meta.env.VITE_APP_ENV || "production";
+  const navigateTo = (page) => {
+    if (!page) return;
+    setActivePage(page);
+  };
 
   useEffect(() => {
     if (!window.xnoll) return;
-    const cleanup = window.xnoll.onNavigate((page) => setActivePage(page));
+    const cleanup = window.xnoll.onNavigate((page) => navigateTo(page));
     return cleanup; // Cleanup function
   }, []);
 
@@ -55,9 +58,9 @@ const AppContent = () => {
 
   return (
     <div className="app-root">
-      <TopBar env={env} onNavigate={setActivePage} />
+      <TopBar onNavigate={navigateTo} />
       <div className="d-flex app-body">
-        <Sidebar activePage={activePage} setActivePage={setActivePage} />
+        <Sidebar activePage={activePage} setActivePage={navigateTo} />
         <main className="app-main flex-grow-1 p-3">{renderPage()}</main>
       </div>
     </div>

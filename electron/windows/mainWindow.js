@@ -7,7 +7,7 @@ function createMainWindow(isDev) {
     height: 800,
     minWidth: 1024,
     minHeight: 640,
-    title: "Xnoll Inventory Desktop",
+    title: "Xnoll Inventory Pro",
     icon: path.join(__dirname, "../../build/icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -18,7 +18,6 @@ function createMainWindow(isDev) {
 
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
   } else {
     const prodPath = path.join(__dirname, "../../dist/renderer/index.html");
     mainWindow.loadFile(prodPath);

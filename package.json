@@ -1,7 +1,7 @@
 {
-  "name": "xnoll-inventory",
+  "name": "xnoll-inventory-pro",
   "version": "1.0.0",
-  "description": "Offline-first inventory management system",
+  "description": "Xnoll Inventory Pro desktop software",
   "author": "Xnoll Team",
   "license": "Commercial",
   "main": "electron/main.js",
@@ -10,7 +10,7 @@
     "dev:electron": "cross-env NODE_ENV=development electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
     "build:renderer": "vite build --config vite.config.mts --mode production",
-    "build:electron": "cross-env NODE_ENV=production electron-builder",
+    "build:electron": "cross-env NODE_ENV=production electron-builder --config electron-builder.yaml",
     "build": "npm run build:renderer && npm run build:electron",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps && npm run rebuild",
@@ -43,64 +43,7 @@
     "wait-on": "^8.0.0"
   },
   "build": {
-    "appId": "com.xnoll.inventory",
-    "productName": "Xnoll Inventory Desktop",
-    "directories": {
-      "output": "dist/build",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/renderer/**/*",
-      "electron/**/*",
-      "package.json",
-      "node_modules/**/*"
-    ],
-    "asar": true,
-    "compression": "maximum",
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
-      ],
-      "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Xnoll Inventory Desktop",
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
-    },
-    "dmg": {
-      "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "build/icons",
-      "category": "Office",
-      "maintainer": "support@xnoll.com"
-    }
+    "extends": "electron-builder.yaml"
   },
   "keywords": [
     "inventory",

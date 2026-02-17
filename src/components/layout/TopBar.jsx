@@ -2,8 +2,7 @@ import React from "react";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { useTranslation } from "../../i18n/i18nContext";
 
-const TopBar = ({ env, onNavigate }) => {
-  const isDev = env === "development";
+const TopBar = ({ onNavigate }) => {
   const { t } = useTranslation();
 
   return (
@@ -24,12 +23,10 @@ const TopBar = ({ env, onNavigate }) => {
             <line x1="8" y1="2" x2="8" y2="6"></line>
             <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
-          Xnoll Inventory Desktop
+          Xnoll Inventory Pro
         </span>
 
         <div className="d-flex align-items-center gap-3">
-          {isDev && <span className="badge bg-warning text-dark">DEV</span>}
-
           <small className="text-warning fw-semibold d-none d-md-inline">
             Offline
           </small>

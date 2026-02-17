@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import CustomFieldRenderer from "../../components/CustomField/CustomFieldRenderer";
 import Pagination from "../../components/common/Pagination";
-import { ensureSuccess, notifyError } from "../../utils/feedback";
+import UnifiedLoader from "../../components/common/UnifiedLoader";
+import {
+  deserializeCustomFieldValue,
+  formatCustomFieldDisplayValue,
+  serializeCustomFieldValue,
+} from "../../utils/customFields";
+import {
+  confirmAction,
+  ensureSuccess,
+  notifyError,
+  notifySuccess,
+} from "../../utils/feedback";
 import { isValidEmail, isValidPhone, validateRequiredFields } from "../../utils/validation";
 
 const emptyForm = { id: null, name: "", phone: "", email: "" };
@@ -106,11 +117,12 @@ const Customers = () => {
       if (customFields.length > 0 && customerId) {
         for (const field of customFields) {
           const value = customFieldValues[field.name];
-          if (value !== undefined && value !== "") {
+          const serializedValue = serializeCustomFieldValue(field, value);
+          if (serializedValue !== "") {
             await window.xnoll.customFieldValuesSave({
               field_id: field.id,
               record_id: customerId,
-              value: String(value),
+              value: serializedValue,
             });
           }
         }
@@ -119,6 +131,7 @@ const Customers = () => {
       resetForm();
       setShowModal(false);
       await loadCustomers();
+      notifySuccess(isEditing ? "Customer updated successfully." : "Customer created successfully.");
     } catch (error) {
       notifyError(error, "Unable to save customer.");
     } finally {
@@ -144,12 +157,12 @@ const Customers = () => {
             customer.id
           );
           if (result && result.value !== undefined) {
-            values[field.name] = result.value;
+            values[field.name] = deserializeCustomFieldValue(field, result.value);
           }
         }
         setCustomFieldValues(values);
       } catch (err) {
-        console.error("Failed to load custom field values:", err);
+        notifyError(err, "Unable to load custom field values.");
       }
     }
 
@@ -159,12 +172,18 @@ const Customers = () => {
 
   const handleDelete = async (id) => {
     if (!window.xnoll) return;
-    if (!window.confirm("Delete this customer?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete customer?",
+      text: "This customer will be removed permanently.",
+      confirmButtonText: "Delete",
+    });
+    if (!confirmed) return;
 
     setLoading(true);
     try {
       ensureSuccess(await window.xnoll.customersDelete(id), "Unable to delete customer.");
       await loadCustomers();
+      notifySuccess("Customer deleted successfully.");
     } catch (error) {
       notifyError(error, "Unable to delete customer.");
     } finally {
@@ -230,7 +249,7 @@ const Customers = () => {
 
       <div className="card shadow-sm border-0">
         <div className="card-body">
-          {loading && <div className="text-muted small mb-2">Loading...</div>}
+          <UnifiedLoader show={loading} text="Loading customers..." />
           <div className="table-responsive" style={{ maxHeight: "60vh" }}>
             <table className="table table-sm table-striped align-middle">
               <thead className="table-light">
@@ -288,7 +307,10 @@ const Customers = () => {
                       : []
                     ).map((f) => (
                       <td key={f.id}>
-                        {c.custom_fields?.[f.name] ?? f.default_value ?? "-"}
+                        {formatCustomFieldDisplayValue(
+                          f,
+                          c.custom_fields?.[f.name] ?? f.default_value
+                        )}
                       </td>
                     ))}
                     <td className="text-end">
@@ -343,7 +365,7 @@ const Customers = () => {
           />
 
           <small className="text-muted d-block mt-2">
-            Data stored locally in SQLite.
+            Customer master records are available across the full system.
           </small>
         </div>
       </div>

@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import Button from '../../components/common/Button';
-import { notifyError } from '../../utils/feedback';
+import { ensureSuccess, notifyError, notifySuccess } from '../../utils/feedback';
+import { validateRequiredFields } from '../../utils/validation';
 
 const GeneralSettings = () => {
   const [form, setForm] = useState({
     auto_generate_sku: 1,
     sku_prefix: 'SKU',
     currency: 'INR',
+    enable_lot_tracking: 1,
+    enable_batch_tracking: 0,
+    enable_expiry_tracking: 1,
+    enable_manufacture_date: 0,
   });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
   const loadSettings = async () => {
     if (!window.xnoll) return;
     setLoading(true);
@@ -22,6 +25,10 @@ const GeneralSettings = () => {
           auto_generate_sku: result.settings.auto_generate_sku ? 1 : 0,
           sku_prefix: result.settings.sku_prefix || 'SKU',
           currency: result.settings.currency || 'INR',
+          enable_lot_tracking: result.settings.enable_lot_tracking ? 1 : 0,
+          enable_batch_tracking: result.settings.enable_batch_tracking ? 1 : 0,
+          enable_expiry_tracking: result.settings.enable_expiry_tracking ? 1 : 0,
+          enable_manufacture_date: result.settings.enable_manufacture_date ? 1 : 0,
         }));
       }
     } catch (err) {
@@ -47,14 +54,28 @@ const GeneralSettings = () => {
     e.preventDefault();
     if (!window.xnoll) return;
     setLoading(true);
-    setMessage('');
+    const validationError = validateRequiredFields(
+      { sku_prefix: form.sku_prefix },
+      { sku_prefix: 'SKU Prefix' }
+    );
+    if (validationError) {
+      setLoading(false);
+      return notifyError(validationError);
+    }
     try {
-      const res = await window.xnoll.settingsSave(form);
-      if (res?.success) setMessage('Saved');
-      else setMessage(res?.error || 'Save failed');
+      const lotEnabled = !!form.enable_lot_tracking;
+      const payload = {
+        ...form,
+        sku_prefix: String(form.sku_prefix || "").trim(),
+        enable_lot_tracking: lotEnabled ? 1 : 0,
+        enable_batch_tracking: lotEnabled && form.enable_batch_tracking ? 1 : 0,
+        enable_expiry_tracking: lotEnabled && form.enable_expiry_tracking ? 1 : 0,
+        enable_manufacture_date: lotEnabled && form.enable_manufacture_date ? 1 : 0,
+      };
+      ensureSuccess(await window.xnoll.settingsSave(payload), 'Unable to save settings.');
+      notifySuccess('Settings saved successfully.');
     } catch (err) {
       notifyError(err, 'Unable to save settings.');
-      setMessage('Save failed');
     } finally {
       setLoading(false);
     }
@@ -64,7 +85,7 @@ const GeneralSettings = () => {
     <form onSubmit={handleSubmit} className="card shadow-sm border-0">
       <div className="card-body">
         <h6 className="mb-3">General</h6>
-        <div className="form-check form-switch mb-3">
+        <div className="form-check form-switch ui-switch mb-3">
           <input
             className="form-check-input"
             type="checkbox"
@@ -104,7 +125,63 @@ const GeneralSettings = () => {
             <option value="CAD">CAD (C$)</option>
           </select>
         </div>
-        {message && <div className="alert alert-info py-2">{message}</div>}
+        <hr />
+        <h6 className="mb-3">Inventory Features</h6>
+        <div className="form-check form-switch ui-switch mb-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="enableLotTracking"
+            name="enable_lot_tracking"
+            checked={!!form.enable_lot_tracking}
+            onChange={handleChange}
+          />
+          <label className="form-check-label" htmlFor="enableLotTracking">
+            Enable Lot/Bin tracking in inventory
+          </label>
+        </div>
+        <div className="form-check form-switch ui-switch mb-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="enableBatchTracking"
+            name="enable_batch_tracking"
+            checked={!!form.enable_batch_tracking}
+            onChange={handleChange}
+            disabled={!form.enable_lot_tracking}
+          />
+          <label className="form-check-label" htmlFor="enableBatchTracking">
+            Use Batch label (instead of Lot)
+          </label>
+        </div>
+        <div className="form-check form-switch ui-switch mb-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="enableExpiryTracking"
+            name="enable_expiry_tracking"
+            checked={!!form.enable_expiry_tracking}
+            onChange={handleChange}
+            disabled={!form.enable_lot_tracking}
+          />
+          <label className="form-check-label" htmlFor="enableExpiryTracking">
+            Enable Expiry tracking
+          </label>
+        </div>
+        <div className="form-check form-switch ui-switch mb-3">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="enableMfgDate"
+            name="enable_manufacture_date"
+            checked={!!form.enable_manufacture_date}
+            onChange={handleChange}
+            disabled={!form.enable_lot_tracking}
+          />
+          <label className="form-check-label" htmlFor="enableMfgDate">
+            Enable Manufacture date
+          </label>
+        </div>
         <div className="d-flex justify-content-end">
           <Button variant="primary" type="submit" disabled={loading} size="sm">
             {loading ? 'Saving...' : 'Save Settings'}

@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import SearchBar from '../../components/common/SearchBar';
+import {
+  confirmAction,
+  ensureSuccess,
+  notifyError,
+  notifySuccess,
+} from '../../utils/feedback';
+import { parseCustomFieldOptions } from '../../utils/customFields';
 
 const modules = [
   { value: 'customers', label: 'Customers' },
@@ -79,38 +86,65 @@ const CustomFields = () => {
     if (!window.xnoll) return;
     setLoading(true);
     // Auto-generate name if empty
-    let name = form.name;
+    let name = String(form.name || "").trim();
     if (!name && form.label) {
       name = form.label
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '');
     }
+    if (!String(form.label || "").trim()) {
+      setLoading(false);
+      return notifyError("Label is required.");
+    }
+    if (!name) {
+      setLoading(false);
+      return notifyError("Name (key) is required.");
+    }
+    if (!/^[a-z0-9_]+$/.test(name)) {
+      setLoading(false);
+      return notifyError("Name (key) must use lowercase letters, numbers, and underscores only.");
+    }
+    if (form.type === 'multiselect') {
+      setLoading(false);
+      return notifyError('Multiselect is temporarily disabled. Please use Select.');
+    }
+    if (form.type === 'select') {
+      const options = parseCustomFieldOptions(form.options);
+      if (!options.length) {
+        setLoading(false);
+        return notifyError("At least one option is required for select fields.");
+      }
+    }
     // Disallow default_value for date/datetime
     let payload = {
       ...form,
       name,
+      options: form.type === 'select'
+        ? parseCustomFieldOptions(form.options).join(', ')
+        : '',
       required: form.required ? 1 : 0,
       display_in_grid: form.display_in_grid ? 1 : 0,
       display_in_filter: form.display_in_filter ? 1 : 0,
       sortable: form.sortable ? 1 : 0,
       searchable: form.searchable ? 1 : 0,
     };
-    if (["date","datetime"].includes(form.type)) {
+    if (["date", "datetime"].includes(form.type)) {
       payload.default_value = '';
     }
     try {
       if (isEditing && form.id != null) {
-        await window.xnoll.customFieldsUpdate(payload);
+        ensureSuccess(await window.xnoll.customFieldsUpdate(payload), 'Unable to update custom field.');
       } else {
-        await window.xnoll.customFieldsCreate(payload);
+        ensureSuccess(await window.xnoll.customFieldsCreate(payload), 'Unable to create custom field.');
       }
       await loadFields();
       setShowModal(false);
       setForm(emptyForm);
       setIsEditing(false);
+      notifySuccess(isEditing ? "Custom field updated successfully." : "Custom field created successfully.");
     } catch (err) {
-      console.error('Save custom field failed', err);
+      notifyError(err, 'Unable to save custom field.');
     } finally {
       setLoading(false);
     }
@@ -118,11 +152,19 @@ const CustomFields = () => {
 
   const handleDelete = async (id) => {
     if (!window.xnoll) return;
-    if (!window.confirm('Delete this custom field?')) return;
+    const confirmed = await confirmAction({
+      title: 'Delete custom field?',
+      text: 'This custom field and its values will be removed permanently.',
+      confirmButtonText: 'Delete',
+    });
+    if (!confirmed) return;
     setLoading(true);
     try {
-      await window.xnoll.customFieldsDelete(id);
+      ensureSuccess(await window.xnoll.customFieldsDelete(id), 'Unable to delete custom field.');
       await loadFields();
+      notifySuccess('Custom field deleted successfully.');
+    } catch (err) {
+      notifyError(err, 'Unable to delete custom field.');
     } finally {
       setLoading(false);
     }
@@ -136,7 +178,8 @@ const CustomFields = () => {
       display_in_filter: !!field.display_in_filter,
       sortable: !!field.sortable,
       searchable: !!field.searchable,
-      options: field.options || '',
+      options: parseCustomFieldOptions(field.options).join(', '),
+      type: field.type === 'multiselect' ? 'select' : field.type,
     });
     setIsEditing(true);
     setShowModal(true);
@@ -295,7 +338,7 @@ const CustomFields = () => {
                 value={form.options}
                 onChange={(e) => setForm((f) => ({ ...f, options: e.target.value }))}
                 placeholder="option1,option2"
-                disabled={!['select'].includes(form.type)}
+                disabled={form.type !== 'select'}
               />
             </div>
             <div className="col-md-4">
@@ -305,12 +348,18 @@ const CustomFields = () => {
                 value={form.default_value}
                 onChange={(e) => setForm((f) => ({ ...f, default_value: e.target.value }))}
                 disabled={['date', 'datetime'].includes(form.type)}
-                placeholder={['date', 'datetime'].includes(form.type) ? 'Not allowed for dates' : ''}
+                placeholder={
+                  ['date', 'datetime'].includes(form.type)
+                    ? 'Not allowed for dates'
+                    : form.type === 'select'
+                      ? 'option1,option2'
+                      : ''
+                }
               />
             </div>
             <div className="col-12">
               <div className="d-flex flex-wrap gap-3">
-                <div className="form-check">
+                <div className="form-check form-switch ui-switch">
                   <input
                     className="form-check-input"
                     type="checkbox"
@@ -322,7 +371,7 @@ const CustomFields = () => {
                     Required
                   </label>
                 </div>
-                <div className="form-check">
+                <div className="form-check form-switch ui-switch">
                   <input
                     className="form-check-input"
                     type="checkbox"
@@ -346,7 +395,7 @@ const CustomFields = () => {
                     Filterable
                   </label>
                 </div> */}
-                <div className="form-check">
+                <div className="form-check form-switch ui-switch">
                   <input
                     className="form-check-input"
                     type="checkbox"
@@ -358,7 +407,7 @@ const CustomFields = () => {
                     Sortable
                   </label>
                 </div>
-                <div className="form-check">
+                <div className="form-check form-switch ui-switch">
                   <input
                     className="form-check-input"
                     type="checkbox"

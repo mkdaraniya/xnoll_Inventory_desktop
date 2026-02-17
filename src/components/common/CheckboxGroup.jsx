@@ -35,19 +35,22 @@ const CheckboxGroup = ({
       )}
       <div className={inline ? 'd-flex flex-wrap gap-3' : 'd-flex flex-column'}>
         {options.map(opt => (
-          <label
+          <div
             key={opt.value}
-            className="checkbox"
+            className="form-check form-switch ui-switch"
             onClick={e => e.stopPropagation()}
           >
             <input
+              className="form-check-input"
+              id={`${name}-${String(opt.value)}`}
               type="checkbox"
               checked={isChecked(opt.value)}
               onChange={() => handleToggle(opt.value)}
             />
-            <span className="checkbox-mark" />
-            <span className="checkbox-label">{opt.label}</span>
-          </label>
+            <label className="form-check-label" htmlFor={`${name}-${String(opt.value)}`}>
+              {opt.label}
+            </label>
+          </div>
         ))}
       </div>
       {error && <div className="invalid-feedback d-block">{error}</div>}

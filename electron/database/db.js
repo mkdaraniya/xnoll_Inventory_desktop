@@ -67,6 +67,76 @@ function initDatabase() {
 // Initialize database
 initDatabase();
 
+function ensureSettingsColumns() {
+  const cols = db.prepare("PRAGMA table_info(settings)").all();
+  const has = new Set(cols.map((c) => String(c.name || "").trim()));
+  const missing = [];
+
+  if (!has.has("enable_lot_tracking")) {
+    missing.push("ALTER TABLE settings ADD COLUMN enable_lot_tracking INTEGER DEFAULT 1");
+  }
+  if (!has.has("enable_batch_tracking")) {
+    missing.push("ALTER TABLE settings ADD COLUMN enable_batch_tracking INTEGER DEFAULT 0");
+  }
+  if (!has.has("enable_expiry_tracking")) {
+    missing.push("ALTER TABLE settings ADD COLUMN enable_expiry_tracking INTEGER DEFAULT 1");
+  }
+  if (!has.has("enable_manufacture_date")) {
+    missing.push("ALTER TABLE settings ADD COLUMN enable_manufacture_date INTEGER DEFAULT 0");
+  }
+
+  missing.forEach((sql) => db.exec(sql));
+}
+
+ensureSettingsColumns();
+
+function ensureTaxSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tax_rates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      rate REAL NOT NULL DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      is_default INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tax_rates_name ON tax_rates(name);
+    CREATE INDEX IF NOT EXISTS idx_tax_rates_active ON tax_rates(is_active);
+  `);
+
+  const productCols = db.prepare("PRAGMA table_info(products)").all();
+  const productHas = new Set(productCols.map((c) => String(c.name || "").trim()));
+  if (!productHas.has("default_tax_id")) {
+    db.exec("ALTER TABLE products ADD COLUMN default_tax_id INTEGER");
+  }
+
+  const itemCols = db.prepare("PRAGMA table_info(invoice_items)").all();
+  const itemHas = new Set(itemCols.map((c) => String(c.name || "").trim()));
+  if (!itemHas.has("tax_id")) {
+    db.exec("ALTER TABLE invoice_items ADD COLUMN tax_id INTEGER");
+  }
+  if (!itemHas.has("tax_name")) {
+    db.exec("ALTER TABLE invoice_items ADD COLUMN tax_name TEXT");
+  }
+}
+
+ensureTaxSchema();
+
+function ensureInventoryPerformanceIndexes() {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_stock_txn_wh_prod_date ON stock_transactions(warehouse_id, product_id, txn_date DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_stock_txn_prod_date ON stock_transactions(product_id, txn_date DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_stock_txn_date_id ON stock_transactions(txn_date DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_ws_wh_prod ON warehouse_stock(warehouse_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_reorder_wh_prod ON product_reorder_levels(warehouse_id, product_id);
+    CREATE INDEX IF NOT EXISTS idx_lots_wh_prod_qty ON inventory_lots(warehouse_id, product_id, quantity_available);
+    CREATE INDEX IF NOT EXISTS idx_lots_prod_wh_qty ON inventory_lots(product_id, warehouse_id, quantity_available);
+  `);
+}
+
+ensureInventoryPerformanceIndexes();
+
 function normalizePagination(input = {}) {
   const page = Math.max(1, Number(input.page || 1));
   const pageSizeRaw = Number(input.pageSize || 10);
@@ -121,6 +191,8 @@ const statements = {
     UPDATE settings SET
       company_name = ?, currency = ?, auto_generate_sku = ?, sku_prefix = ?,
       language = ?, enable_tax = ?, default_tax_name = ?, default_tax_rate = ?, default_tax_mode = ?,
+      tax_scheme = ?, default_gst_tax_type = ?, cgst_label = ?, sgst_label = ?, igst_label = ?,
+      enable_lot_tracking = ?, enable_batch_tracking = ?, enable_expiry_tracking = ?, enable_manufacture_date = ?,
       invoice_prefix = ?, invoice_terms = ?, invoice_footer = ?,
       invoice_show_company_address = ?, invoice_show_company_phone = ?, invoice_show_company_email = ?,
       invoice_show_company_tax_id = ?, invoice_show_due_date = ?, invoice_show_notes = ?, invoice_decimal_places = ?,
@@ -142,28 +214,45 @@ const statements = {
 
   // Products
   insertProduct: db.prepare(`
-    INSERT INTO products (sku, name, description, unit, price, discount, category, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    INSERT INTO products (sku, name, description, unit, price, discount, category, default_tax_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateProduct: db.prepare(`
-    UPDATE products SET sku = ?, name = ?, description = ?, unit = ?, price = ?, discount = ?, category = ?, updated_at = CURRENT_TIMESTAMP
+    UPDATE products SET sku = ?, name = ?, description = ?, unit = ?, price = ?, discount = ?, category = ?, default_tax_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteProduct: db.prepare("DELETE FROM products WHERE id = ?"),
   getAllProducts: db.prepare("SELECT * FROM products ORDER BY id DESC"),
 
+  // Tax rates
+  insertTaxRate: db.prepare(`
+    INSERT INTO tax_rates (name, rate, is_active, is_default, created_at, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `),
+  updateTaxRate: db.prepare(`
+    UPDATE tax_rates
+    SET name = ?, rate = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `),
+  deleteTaxRate: db.prepare("DELETE FROM tax_rates WHERE id = ?"),
+  getAllTaxRates: db.prepare("SELECT * FROM tax_rates ORDER BY is_default DESC, name ASC, id DESC"),
+  getTaxRateById: db.prepare("SELECT * FROM tax_rates WHERE id = ?"),
+  clearTaxRateDefault: db.prepare("UPDATE tax_rates SET is_default = 0, updated_at = CURRENT_TIMESTAMP"),
+  countTaxRateUsageInProducts: db.prepare("SELECT COUNT(*) as total FROM products WHERE default_tax_id = ?"),
+  countTaxRateUsageInInvoiceItems: db.prepare("SELECT COUNT(*) as total FROM invoice_items WHERE tax_id = ?"),
+
   // Invoices
   insertInvoice: db.prepare(`
     INSERT INTO invoices (
       invoice_number, customer_id, subtotal, tax_total, tax_name, tax_rate, tax_mode,
-      total, discount, invoice_date, due_date, status, notes, created_at, updated_at
+      tax_type, tax_breakup, total, paid_amount, balance_due, discount, invoice_date, due_date, status, notes, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `),
   updateInvoice: db.prepare(`
     UPDATE invoices SET
       invoice_number = ?, customer_id = ?, subtotal = ?, tax_total = ?, tax_name = ?, tax_rate = ?, tax_mode = ?,
-      total = ?, discount = ?, invoice_date = ?, due_date = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      tax_type = ?, tax_breakup = ?, total = ?, discount = ?, invoice_date = ?, due_date = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `),
   deleteInvoice: db.prepare("DELETE FROM invoices WHERE id = ?"),
@@ -176,15 +265,38 @@ const statements = {
 
   // Invoice Items
   insertInvoiceItem: db.prepare(`
-    INSERT INTO invoice_items (invoice_id, product_id, description, qty, unit_price, line_subtotal, tax_rate, tax_amount, line_total)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO invoice_items (invoice_id, product_id, description, qty, unit_price, line_subtotal, tax_id, tax_name, tax_rate, tax_amount, line_total)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   deleteInvoiceItems: db.prepare(
     "DELETE FROM invoice_items WHERE invoice_id = ?"
   ),
   getInvoiceItems: db.prepare(
-    "SELECT * FROM invoice_items WHERE invoice_id = ?"
+    "SELECT ii.*, tr.name AS resolved_tax_name FROM invoice_items ii LEFT JOIN tax_rates tr ON tr.id = ii.tax_id WHERE ii.invoice_id = ?"
   ),
+  getInvoicePayments: db.prepare(`
+    SELECT *
+    FROM invoice_payments
+    WHERE invoice_id = ?
+    ORDER BY date(payment_date) ASC, id ASC
+  `),
+  getInvoicePaymentTotal: db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) AS paid_amount
+    FROM invoice_payments
+    WHERE invoice_id = ?
+  `),
+  insertInvoicePayment: db.prepare(`
+    INSERT INTO invoice_payments (
+      invoice_id, amount, payment_date, payment_method, reference_no, notes, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `),
+  deleteInvoicePayment: db.prepare("DELETE FROM invoice_payments WHERE id = ?"),
+  getInvoicePaymentById: db.prepare("SELECT * FROM invoice_payments WHERE id = ?"),
+  updateInvoicePaymentSummary: db.prepare(`
+    UPDATE invoices
+    SET paid_amount = ?, balance_due = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `),
 
   // Suppliers
   insertSupplier: db.prepare(`
@@ -353,36 +465,26 @@ function getAllCustomFields(module) {
 }
 
 // --- Helper functions ---
-function getCustomersWithCustomFields() {
-  const customers = statements.getAllCustomers.all();
-  const customFields = getAllCustomFields("customers");
+function attachCustomFieldsToRows(module, rows = []) {
+  const customFields = getAllCustomFields(module);
+  if (!customFields.length) return rows;
 
-  if (customFields.length === 0) return customers;
-
-  for (const customer of customers) {
-    customer.custom_fields = {};
+  for (const row of rows) {
+    row.custom_fields = {};
     for (const field of customFields) {
-      const row = statements.getCustomFieldValues.get(field.id, customer.id);
-      if (row) customer.custom_fields[field.name] = row.value;
+      const valueRow = statements.getCustomFieldValues.get(field.id, row.id);
+      if (valueRow) row.custom_fields[field.name] = valueRow.value;
     }
   }
-  return customers;
+  return rows;
+}
+
+function getCustomersWithCustomFields() {
+  return attachCustomFieldsToRows("customers", statements.getAllCustomers.all());
 }
 
 function getProductsWithCustomFields() {
-  const products = statements.getAllProducts.all();
-  const customFields = getAllCustomFields("products");
-
-  if (customFields.length === 0) return products;
-
-  for (const product of products) {
-    product.custom_fields = {};
-    for (const field of customFields) {
-      const row = statements.getCustomFieldValues.get(field.id, product.id);
-      if (row) product.custom_fields[field.name] = row.value;
-    }
-  }
-  return products;
+  return attachCustomFieldsToRows("products", statements.getAllProducts.all());
 }
 
 function getInvoiceById(id) {
@@ -399,6 +501,14 @@ function getInvoiceById(id) {
 
   if (invoice) {
     invoice.items = statements.getInvoiceItems.all(id);
+    invoice.payments = statements.getInvoicePayments.all(id);
+    if (invoice.paid_amount == null || invoice.balance_due == null) {
+      const paidAmount = toMoney(
+        statements.getInvoicePaymentTotal.get(id)?.paid_amount || 0
+      );
+      invoice.paid_amount = paidAmount;
+      invoice.balance_due = toMoney(Math.max(0, Number(invoice.total || 0) - paidAmount));
+    }
   }
   return invoice || null;
 }
@@ -411,6 +521,15 @@ function getInvoicesWithItems() {
 
   for (const invoice of invoices) {
     invoice.items = statements.getInvoiceItems.all(invoice.id);
+    if (invoice.paid_amount == null || invoice.balance_due == null) {
+      const paidAmount = toMoney(
+        statements.getInvoicePaymentTotal.get(invoice.id)?.paid_amount || 0
+      );
+      invoice.paid_amount = paidAmount;
+      invoice.balance_due = toMoney(
+        Math.max(0, Number(invoice.total || 0) - paidAmount)
+      );
+    }
 
     // Enrich items with product name if available
     if (Array.isArray(invoice.items)) {
@@ -444,7 +563,7 @@ function validateSupplierPayload(data) {
 }
 
 function getSuppliers() {
-  return statements.getAllSuppliers.all();
+  return attachCustomFieldsToRows("suppliers", statements.getAllSuppliers.all());
 }
 
 function createPurchaseOrderWithItems(data) {
@@ -596,9 +715,10 @@ function createStockMovement(data) {
 }
 
 function listWarehouses() {
-  return db
+  const rows = db
     .prepare("SELECT * FROM warehouses WHERE is_active = 1 ORDER BY is_primary DESC, name ASC")
     .all();
+  return attachCustomFieldsToRows("warehouses", rows);
 }
 
 function upsertWarehouseStock({
@@ -921,7 +1041,19 @@ function upsertReorderLevel(data) {
   return { id: info.lastInsertRowid };
 }
 
-function getWarehouseStockSummary() {
+function getWarehouseStockSummary(filters = {}) {
+  const clauses = [];
+  const params = [];
+  if (filters.product_id) {
+    clauses.push("ws.product_id = ?");
+    params.push(Number(filters.product_id));
+  }
+  if (filters.warehouse_id) {
+    clauses.push("ws.warehouse_id = ?");
+    params.push(Number(filters.warehouse_id));
+  }
+  const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const limit = Math.max(1, Math.min(1000, Number(filters.limit || 300)));
   return db
     .prepare(
       `SELECT
@@ -937,13 +1069,15 @@ function getWarehouseStockSummary() {
         COALESCE(pr.reorder_point, 0) AS reorder_point,
         COALESCE(pr.safety_stock, 0) AS safety_stock,
         CASE WHEN COALESCE(ws.on_hand, 0) <= COALESCE(pr.reorder_point, 0) AND COALESCE(pr.reorder_point, 0) > 0 THEN 1 ELSE 0 END AS is_below_reorder
-      FROM products p
-      JOIN warehouses w ON w.is_active = 1
-      LEFT JOIN warehouse_stock ws ON ws.product_id = p.id AND ws.warehouse_id = w.id
-      LEFT JOIN product_reorder_levels pr ON pr.product_id = p.id AND pr.warehouse_id = w.id
-      ORDER BY p.name ASC, w.name ASC`
+      FROM warehouse_stock ws
+      JOIN products p ON p.id = ws.product_id
+      JOIN warehouses w ON w.id = ws.warehouse_id AND w.is_active = 1
+      LEFT JOIN product_reorder_levels pr ON pr.product_id = ws.product_id AND pr.warehouse_id = ws.warehouse_id
+      ${whereSql}
+      ORDER BY ws.updated_at DESC, ws.id DESC
+      LIMIT ?`
     )
-    .all();
+    .all(...params, limit);
 }
 
 function getLots(filters = {}) {
@@ -963,6 +1097,7 @@ function getLots(filters = {}) {
   }
 
   const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const limit = Math.max(1, Math.min(2000, Number(filters.limit || 500)));
 
   return db
     .prepare(
@@ -975,12 +1110,14 @@ function getLots(filters = {}) {
       JOIN products p ON p.id = l.product_id
       JOIN warehouses w ON w.id = l.warehouse_id
       ${whereSql}
-      ORDER BY l.expiry_date IS NULL, l.expiry_date ASC, l.updated_at DESC`
+      ORDER BY l.updated_at DESC, l.id DESC
+      LIMIT ?`
     )
-    .all(...params);
+    .all(...params, limit);
 }
 
-function getReorderAlerts() {
+function getReorderAlerts(filters = {}) {
+  const limit = Math.max(1, Math.min(2000, Number(filters.limit || 500)));
   const lowStock = db
     .prepare(
       `SELECT
@@ -998,9 +1135,10 @@ function getReorderAlerts() {
       JOIN product_reorder_levels pr ON pr.product_id = ws.product_id AND pr.warehouse_id = ws.warehouse_id
       WHERE COALESCE(pr.reorder_point, 0) > 0
         AND COALESCE(ws.on_hand, 0) <= COALESCE(pr.reorder_point, 0)
-      ORDER BY (COALESCE(pr.reorder_point, 0) - COALESCE(ws.on_hand, 0)) DESC`
+      ORDER BY (COALESCE(pr.reorder_point, 0) - COALESCE(ws.on_hand, 0)) DESC
+      LIMIT ?`
     )
-    .all();
+    .all(limit);
 
   const expiringLots = db
     .prepare(
@@ -1018,9 +1156,10 @@ function getReorderAlerts() {
       WHERE l.quantity_available > 0
         AND l.expiry_date IS NOT NULL
         AND date(l.expiry_date) <= date('now', '+45 day')
-      ORDER BY date(l.expiry_date) ASC`
+      ORDER BY date(l.expiry_date) ASC
+      LIMIT ?`
     )
-    .all();
+    .all(limit);
 
   return { lowStock, expiringLots };
 }
@@ -1038,15 +1177,16 @@ function getStockTransactions(filters = {}) {
     params.push(Number(filters.warehouse_id));
   }
   if (filters.from_date) {
-    clauses.push("date(t.txn_date) >= date(?)");
-    params.push(filters.from_date);
+    clauses.push("t.txn_date >= ?");
+    params.push(`${filters.from_date} 00:00:00`);
   }
   if (filters.to_date) {
-    clauses.push("date(t.txn_date) <= date(?)");
-    params.push(filters.to_date);
+    clauses.push("t.txn_date <= ?");
+    params.push(`${filters.to_date} 23:59:59`);
   }
 
   const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const limit = Math.max(1, Math.min(5000, Number(filters.limit || 1000)));
 
   return db
     .prepare(
@@ -1062,12 +1202,25 @@ function getStockTransactions(filters = {}) {
       JOIN warehouses w ON w.id = t.warehouse_id
       LEFT JOIN inventory_lots l ON l.id = t.lot_id
       ${whereSql}
-      ORDER BY datetime(t.txn_date) DESC, t.id DESC`
+      ORDER BY t.txn_date DESC, t.id DESC
+      LIMIT ?`
     )
-    .all(...params);
+    .all(...params, limit);
 }
 
-function getInventoryValuationReport() {
+function getInventoryValuationReport(filters = {}) {
+  const clauses = [];
+  const params = [];
+  if (filters.product_id) {
+    clauses.push("ws.product_id = ?");
+    params.push(Number(filters.product_id));
+  }
+  if (filters.warehouse_id) {
+    clauses.push("ws.warehouse_id = ?");
+    params.push(Number(filters.warehouse_id));
+  }
+  const whereSql = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const limit = Math.max(1, Math.min(5000, Number(filters.limit || 1200)));
   return db
     .prepare(
       `SELECT
@@ -1082,12 +1235,15 @@ function getInventoryValuationReport() {
       FROM warehouse_stock ws
       JOIN products p ON p.id = ws.product_id
       JOIN warehouses w ON w.id = ws.warehouse_id
-      ORDER BY stock_value DESC`
+      ${whereSql}
+      ORDER BY stock_value DESC
+      LIMIT ?`
     )
-    .all();
+    .all(...params, limit);
 }
 
-function getExpiryReport() {
+function getExpiryReport(filters = {}) {
+  const limit = Math.max(1, Math.min(5000, Number(filters.limit || 1200)));
   return db
     .prepare(
       `SELECT
@@ -1103,9 +1259,10 @@ function getExpiryReport() {
       JOIN products p ON p.id = l.product_id
       JOIN warehouses w ON w.id = l.warehouse_id
       WHERE l.expiry_date IS NOT NULL AND l.quantity_available > 0
-      ORDER BY date(l.expiry_date) ASC`
+      ORDER BY date(l.expiry_date) ASC
+      LIMIT ?`
     )
-    .all();
+    .all(limit);
 }
 
 function queryCustomers(options = {}) {
@@ -1114,7 +1271,7 @@ function queryCustomers(options = {}) {
     ["id", "name", "phone", "email", "created_at", "updated_at"],
     "id"
   );
-  return paginateQuery({
+  const result = paginateQuery({
     baseFromSql: "SELECT * FROM customers",
     countFromSql: "FROM customers",
     search: options.search,
@@ -1123,6 +1280,8 @@ function queryCustomers(options = {}) {
     page: options.page,
     pageSize: options.pageSize,
   });
+  result.rows = attachCustomFieldsToRows("customers", result.rows || []);
+  return result;
 }
 
 function queryProducts(options = {}) {
@@ -1131,7 +1290,7 @@ function queryProducts(options = {}) {
     ["id", "sku", "name", "price", "category", "created_at", "updated_at"],
     "id"
   );
-  return paginateQuery({
+  const result = paginateQuery({
     baseFromSql: "SELECT * FROM products",
     countFromSql: "FROM products",
     search: options.search,
@@ -1140,6 +1299,8 @@ function queryProducts(options = {}) {
     page: options.page,
     pageSize: options.pageSize,
   });
+  result.rows = attachCustomFieldsToRows("products", result.rows || []);
+  return result;
 }
 
 function querySuppliers(options = {}) {
@@ -1148,7 +1309,7 @@ function querySuppliers(options = {}) {
     ["id", "name", "contact_person", "phone", "email", "status", "updated_at"],
     "id"
   );
-  return paginateQuery({
+  const result = paginateQuery({
     baseFromSql: "SELECT * FROM suppliers",
     countFromSql: "FROM suppliers",
     search: options.search,
@@ -1157,6 +1318,8 @@ function querySuppliers(options = {}) {
     page: options.page,
     pageSize: options.pageSize,
   });
+  result.rows = attachCustomFieldsToRows("suppliers", result.rows || []);
+  return result;
 }
 
 function queryWarehouses(options = {}) {
@@ -1165,7 +1328,7 @@ function queryWarehouses(options = {}) {
     ["id", "code", "name", "city", "state", "country", "updated_at"],
     "name"
   );
-  return paginateQuery({
+  const result = paginateQuery({
     baseFromSql: "SELECT * FROM warehouses",
     countFromSql: "FROM warehouses",
     search: options.search,
@@ -1174,6 +1337,8 @@ function queryWarehouses(options = {}) {
     page: options.page,
     pageSize: options.pageSize,
   });
+  result.rows = attachCustomFieldsToRows("warehouses", result.rows || []);
+  return result;
 }
 
 function queryPurchaseOrders(options = {}) {
@@ -1224,7 +1389,7 @@ function queryInvoices(options = {}) {
   const { page, pageSize } = normalizePagination(options);
   const sort = normalizeSort(
     options,
-    ["id", "invoice_number", "invoice_date", "status", "total", "customer_name"],
+    ["id", "invoice_number", "invoice_date", "status", "total", "paid_amount", "balance_due", "customer_name"],
     "invoice_date"
   );
   const clauses = [];
@@ -1283,6 +1448,61 @@ function queryNotes(options = {}) {
   });
 }
 
+function queryTaxRates(options = {}) {
+  const sort = normalizeSort(options, ["id", "name", "rate", "is_active", "is_default", "updated_at"], "name");
+  return paginateQuery({
+    baseFromSql: "SELECT * FROM tax_rates",
+    countFromSql: "FROM tax_rates",
+    search: options.search,
+    searchColumns: ["name"],
+    sort,
+    page: options.page,
+    pageSize: options.pageSize,
+  });
+}
+
+function listProductOptions(options = {}) {
+  const params = [];
+  let whereSql = "";
+  const search = String(options.search || "").trim();
+  if (search) {
+    whereSql = "WHERE p.name LIKE ? OR p.sku LIKE ?";
+    const like = `%${search}%`;
+    params.push(like, like);
+  }
+  const limit = Math.max(1, Math.min(5000, Number(options.limit || 1000)));
+  return db
+    .prepare(
+      `SELECT p.id, p.name, p.sku
+       FROM products p
+       ${whereSql}
+       ORDER BY p.name ASC
+       LIMIT ?`
+    )
+    .all(...params, limit);
+}
+
+function listWarehouseOptions(options = {}) {
+  const params = [];
+  let whereSql = "WHERE w.is_active = 1";
+  const search = String(options.search || "").trim();
+  if (search) {
+    whereSql += " AND (w.name LIKE ? OR w.code LIKE ?)";
+    const like = `%${search}%`;
+    params.push(like, like);
+  }
+  const limit = Math.max(1, Math.min(2000, Number(options.limit || 500)));
+  return db
+    .prepare(
+      `SELECT w.id, w.name, w.code
+       FROM warehouses w
+       ${whereSql}
+       ORDER BY w.is_primary DESC, w.name ASC
+       LIMIT ?`
+    )
+    .all(...params, limit);
+}
+
 function queryStockTransactions(options = {}) {
   const { page, pageSize } = normalizePagination(options);
   const sort = normalizeSort(
@@ -1302,12 +1522,12 @@ function queryStockTransactions(options = {}) {
     params.push(Number(options.warehouse_id));
   }
   if (options.from_date) {
-    clauses.push("date(t.txn_date) >= date(?)");
-    params.push(options.from_date);
+    clauses.push("t.txn_date >= ?");
+    params.push(`${options.from_date} 00:00:00`);
   }
   if (options.to_date) {
-    clauses.push("date(t.txn_date) <= date(?)");
-    params.push(options.to_date);
+    clauses.push("t.txn_date <= ?");
+    params.push(`${options.to_date} 23:59:59`);
   }
   if (options.search) {
     const like = `%${String(options.search).trim()}%`;
@@ -1364,12 +1584,74 @@ function checkSkuExists(sku, excludeId = null) {
   return !!result;
 }
 
+function getNextSkuSequence(baseCode) {
+  const base = String(baseCode || "").trim();
+  if (!base) return 1;
+
+  const rows = db
+    .prepare("SELECT sku FROM products WHERE sku LIKE ?")
+    .all(`${base}-%`);
+
+  let maxSequence = 0;
+  for (const row of rows) {
+    const match = String(row?.sku || "").match(/-(\d+)$/);
+    if (!match) continue;
+    const sequence = Number(match[1]);
+    if (Number.isFinite(sequence) && sequence > maxSequence) {
+      maxSequence = sequence;
+    }
+  }
+  return maxSequence + 1;
+}
+
 function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
+function deriveInvoiceStatus(total, paidAmount) {
+  const safeTotal = toMoney(Math.max(0, Number(total || 0)));
+  const safePaid = toMoney(Math.max(0, Number(paidAmount || 0)));
+  if (safePaid <= 0) return "unpaid";
+  if (safePaid >= safeTotal) return "paid";
+  return "partially_paid";
+}
+
+function syncInvoicePaymentState(invoiceId, options = {}) {
+  const id = Number(invoiceId || 0);
+  if (!(id > 0)) throw new Error("Invoice ID is required");
+
+  const invoice = db
+    .prepare("SELECT id, total, status FROM invoices WHERE id = ?")
+    .get(id);
+  if (!invoice) throw new Error("Invoice not found");
+
+  const paidAmount = toMoney(
+    statements.getInvoicePaymentTotal.get(id)?.paid_amount || 0
+  );
+  const total = toMoney(invoice.total || 0);
+  if (paidAmount > total) {
+    throw new Error("Invoice paid amount cannot exceed invoice total");
+  }
+
+  const balanceDue = toMoney(Math.max(0, total - paidAmount));
+  const forceCancelled = options.forceStatus === "cancelled";
+  const status = forceCancelled
+    ? "cancelled"
+    : deriveInvoiceStatus(total, paidAmount);
+
+  statements.updateInvoicePaymentSummary.run(paidAmount, balanceDue, status, id);
+  return { paid_amount: paidAmount, balance_due: balanceDue, status };
+}
+
 function calculateInvoiceTotals(inv, items, settings) {
   const enableTax = Number(settings?.enable_tax || 0) === 1;
+  const taxScheme = String(settings?.tax_scheme || "simple")
+    .trim()
+    .toLowerCase();
+  const validTaxScheme = ["simple", "gst_india"].includes(taxScheme)
+    ? taxScheme
+    : "simple";
+  const isGstIndia = validTaxScheme === "gst_india";
   const taxName = String(inv.tax_name || settings?.default_tax_name || "Tax").trim() || "Tax";
   const invoiceTaxRateRaw = Number(
     inv.tax_rate != null ? inv.tax_rate : settings?.default_tax_rate || 0
@@ -1383,6 +1665,23 @@ function calculateInvoiceTotals(inv, items, settings) {
   const validTaxMode = ["exclusive", "inclusive", "none"].includes(taxMode)
     ? taxMode
     : "exclusive";
+  const taxTypeInput = String(
+    inv.tax_type || settings?.default_gst_tax_type || "intra"
+  )
+    .trim()
+    .toLowerCase();
+  const validTaxType = isGstIndia
+    ? ["intra", "inter"].includes(taxTypeInput)
+      ? taxTypeInput
+      : "intra"
+    : "simple";
+  const cgstLabel = String(settings?.cgst_label || "CGST").trim() || "CGST";
+  const sgstLabel = String(settings?.sgst_label || "SGST").trim() || "SGST";
+  const igstLabel = String(settings?.igst_label || "IGST").trim() || "IGST";
+  const taxRows = statements.getAllTaxRates.all();
+  const taxById = new Map(taxRows.map((row) => [Number(row.id), row]));
+  const productRows = statements.getAllProducts.all();
+  const productById = new Map(productRows.map((row) => [Number(row.id), row]));
 
   let subtotal = 0;
   let taxTotal = 0;
@@ -1394,9 +1693,19 @@ function calculateInvoiceTotals(inv, items, settings) {
     if (!(qty > 0)) throw new Error("Invoice item quantity must be greater than zero");
     if (unitPrice < 0) throw new Error("Invoice item price cannot be negative");
 
+    const itemTaxId = Number(item.tax_id || 0);
+    const selectedTax = itemTaxId > 0 ? taxById.get(itemTaxId) : null;
+    const productTaxId = Number(productById.get(Number(item.product_id || 0))?.default_tax_id || 0);
+    const productTax = productTaxId > 0 ? taxById.get(productTaxId) : null;
+    const effectiveTax = selectedTax || productTax || null;
     const itemTaxRateRaw = Number(
-      item.tax_rate != null ? item.tax_rate : invoiceTaxRate
+      item.tax_rate != null
+        ? item.tax_rate
+        : effectiveTax?.rate != null
+        ? effectiveTax.rate
+        : invoiceTaxRate
     );
+    const itemTaxName = String(item.tax_name || effectiveTax?.name || taxName).trim() || taxName;
     const itemTaxRate =
       enableTax && validTaxMode !== "none" && Number.isFinite(itemTaxRateRaw)
         ? Math.max(0, itemTaxRateRaw)
@@ -1421,20 +1730,44 @@ function calculateInvoiceTotals(inv, items, settings) {
     taxTotal = toMoney(taxTotal + taxAmount);
     gross = toMoney(gross + lineTotal);
 
+    const splitHalf = toMoney(taxAmount / 2);
+    const splitOther = toMoney(Math.max(0, taxAmount - splitHalf));
+    const cgstAmount = validTaxType === "intra" ? splitHalf : 0;
+    const sgstAmount = validTaxType === "intra" ? splitOther : 0;
+    const igstAmount = validTaxType === "inter" ? taxAmount : 0;
+
     return {
       product_id: item.product_id || null,
       description: String(item.description || "").trim(),
       qty,
       unit_price: toMoney(unitPrice),
       line_subtotal: lineSubtotal,
+      tax_id: effectiveTax?.id || null,
+      tax_name: itemTaxName,
       tax_rate: itemTaxRate,
       tax_amount: taxAmount,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: igstAmount,
       line_total: lineTotal,
     };
   });
 
   const discount = Math.max(0, Number(inv.discount || 0));
   const total = toMoney(Math.max(0, gross - discount));
+  const intraCgst = validTaxType === "intra" ? toMoney(taxTotal / 2) : 0;
+  const intraSgst = validTaxType === "intra" ? toMoney(Math.max(0, taxTotal - intraCgst)) : 0;
+  const interIgst = validTaxType === "inter" ? toMoney(taxTotal) : 0;
+  const taxBreakup = {
+    scheme: validTaxScheme,
+    tax_type: validTaxType,
+    cgst_label: cgstLabel,
+    sgst_label: sgstLabel,
+    igst_label: igstLabel,
+    cgst: intraCgst,
+    sgst: intraSgst,
+    igst: interIgst,
+  };
 
   return {
     normalizedItems,
@@ -1443,6 +1776,19 @@ function calculateInvoiceTotals(inv, items, settings) {
     taxName,
     taxRate: enableTax && validTaxMode !== "none" ? invoiceTaxRate : 0,
     taxMode: enableTax ? validTaxMode : "none",
+    taxType: enableTax && validTaxMode !== "none" ? validTaxType : "simple",
+    taxBreakup: enableTax && validTaxMode !== "none"
+      ? taxBreakup
+      : {
+          scheme: validTaxScheme,
+          tax_type: "simple",
+          cgst_label: cgstLabel,
+          sgst_label: sgstLabel,
+          igst_label: igstLabel,
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+        },
     discount: toMoney(discount),
     total,
   };
@@ -1457,6 +1803,10 @@ function createInvoiceWithItems(data) {
     const inv = data.invoice || data; // allow old payload shape
     const settings = statements.getSettings.get() || {};
     const totals = calculateInvoiceTotals(inv, data.items, settings);
+    const requestedStatus = String(inv.status || "").trim().toLowerCase();
+    const isCancelled = requestedStatus === "cancelled";
+    const paidAmount = 0;
+    const balanceDue = totals.total;
 
     const info = statements.insertInvoice.run(
       inv.invoice_number || null,
@@ -1466,11 +1816,15 @@ function createInvoiceWithItems(data) {
       totals.taxName,
       totals.taxRate,
       totals.taxMode,
+      totals.taxType,
+      JSON.stringify(totals.taxBreakup || {}),
       totals.total,
+      paidAmount,
+      balanceDue,
       totals.discount,
       inv.invoice_date,
       inv.due_date || null,
-      inv.status || "unpaid",
+      isCancelled ? "cancelled" : "unpaid",
       inv.notes || ""
     );
     const invoiceId = info.lastInsertRowid;
@@ -1483,6 +1837,8 @@ function createInvoiceWithItems(data) {
         item.qty,
         item.unit_price,
         item.line_subtotal,
+        item.tax_id,
+        item.tax_name,
         item.tax_rate,
         item.tax_amount,
         item.line_total
@@ -1490,6 +1846,62 @@ function createInvoiceWithItems(data) {
     }
 
     return { id: invoiceId };
+  })();
+}
+
+function createInvoicePayment(data) {
+  return db.transaction(() => {
+    const invoiceId = Number(data?.invoice_id || 0);
+    if (!(invoiceId > 0)) throw new Error("Invoice ID is required");
+
+    const invoice = db
+      .prepare("SELECT id, total, status FROM invoices WHERE id = ?")
+      .get(invoiceId);
+    if (!invoice) throw new Error("Invoice not found");
+    if (String(invoice.status || "").toLowerCase() === "cancelled") {
+      throw new Error("Payment cannot be added for a cancelled invoice");
+    }
+
+    const amount = toMoney(Number(data?.amount || 0));
+    if (!(amount > 0)) throw new Error("Payment amount must be greater than zero");
+
+    const currentPaid = toMoney(
+      statements.getInvoicePaymentTotal.get(invoiceId)?.paid_amount || 0
+    );
+    const pending = toMoney(Math.max(0, Number(invoice.total || 0) - currentPaid));
+    if (amount > pending) {
+      throw new Error("Payment amount cannot exceed pending balance");
+    }
+
+    const paymentDate =
+      String(data?.payment_date || "").trim() ||
+      new Date().toISOString().slice(0, 10);
+
+    const info = statements.insertInvoicePayment.run(
+      invoiceId,
+      amount,
+      paymentDate,
+      String(data?.payment_method || "").trim(),
+      String(data?.reference_no || "").trim(),
+      String(data?.notes || "").trim()
+    );
+
+    const state = syncInvoicePaymentState(invoiceId);
+    return { id: info.lastInsertRowid, invoice_id: invoiceId, ...state };
+  })();
+}
+
+function deleteInvoicePayment(paymentId) {
+  return db.transaction(() => {
+    const id = Number(paymentId || 0);
+    if (!(id > 0)) throw new Error("Payment ID is required");
+
+    const payment = statements.getInvoicePaymentById.get(id);
+    if (!payment) throw new Error("Payment not found");
+
+    statements.deleteInvoicePayment.run(id);
+    const state = syncInvoicePaymentState(payment.invoice_id);
+    return { invoice_id: payment.invoice_id, ...state };
   })();
 }
 
@@ -1508,6 +1920,15 @@ module.exports = {
       data.default_tax_name || "Tax",
       Number(data.default_tax_rate || 0),
       data.default_tax_mode || "exclusive",
+      data.tax_scheme || "simple",
+      data.default_gst_tax_type || "intra",
+      data.cgst_label || "CGST",
+      data.sgst_label || "SGST",
+      data.igst_label || "IGST",
+      data.enable_lot_tracking ? 1 : 0,
+      data.enable_batch_tracking ? 1 : 0,
+      data.enable_expiry_tracking ? 1 : 0,
+      data.enable_manufacture_date ? 1 : 0,
       data.invoice_prefix || "INV",
       data.invoice_terms || "",
       data.invoice_footer || "Thank you for your business!",
@@ -1542,6 +1963,52 @@ module.exports = {
     ),
   deleteCustomer: (id) => statements.deleteCustomer.run(id),
   getCustomersWithCustomFields,
+
+  // Tax rates
+  getTaxRates: () => statements.getAllTaxRates.all(),
+  queryTaxRates,
+  insertTaxRate: (data) => {
+    const name = String(data?.name || "").trim();
+    const rate = Number(data?.rate || 0);
+    if (!name) throw new Error("Tax name is required");
+    if (!Number.isFinite(rate) || rate < 0) throw new Error("Tax rate must be 0 or greater");
+    const isDefault = Number(data?.is_default || 0) === 1 ? 1 : 0;
+    if (isDefault) statements.clearTaxRateDefault.run();
+    const info = statements.insertTaxRate.run(
+      name,
+      rate,
+      Number(data?.is_active || 0) === 1 ? 1 : 0,
+      isDefault
+    );
+    return { id: info.lastInsertRowid };
+  },
+  updateTaxRate: (data) => {
+    const id = Number(data?.id || 0);
+    if (!(id > 0)) throw new Error("Tax ID is required");
+    const name = String(data?.name || "").trim();
+    const rate = Number(data?.rate || 0);
+    if (!name) throw new Error("Tax name is required");
+    if (!Number.isFinite(rate) || rate < 0) throw new Error("Tax rate must be 0 or greater");
+    const isDefault = Number(data?.is_default || 0) === 1 ? 1 : 0;
+    if (isDefault) statements.clearTaxRateDefault.run();
+    return statements.updateTaxRate.run(
+      name,
+      rate,
+      Number(data?.is_active || 0) === 1 ? 1 : 0,
+      isDefault,
+      id
+    );
+  },
+  deleteTaxRate: (id) => {
+    const taxId = Number(id || 0);
+    if (!(taxId > 0)) throw new Error("Tax ID is required");
+    const productUse = Number(statements.countTaxRateUsageInProducts.get(taxId)?.total || 0);
+    const invoiceUse = Number(statements.countTaxRateUsageInInvoiceItems.get(taxId)?.total || 0);
+    if (productUse > 0 || invoiceUse > 0) {
+      throw new Error("Tax is in use. Remove from products/invoices before deleting.");
+    }
+    return statements.deleteTaxRate.run(taxId);
+  },
 
   // Suppliers
   insertSupplier: (data) => {
@@ -1583,7 +2050,8 @@ module.exports = {
       data.unit || "",
       data.price || 0,
       data.discount || 0,
-      data.category || ""
+      data.category || "",
+      data.default_tax_id || null
     );
     return { id: info.lastInsertRowid };
   },
@@ -1596,6 +2064,7 @@ module.exports = {
       data.price || 0,
       data.discount || 0,
       data.category || "",
+      data.default_tax_id || null,
       data.id
     ),
   deleteProduct: (id) => statements.deleteProduct.run(id),
@@ -1607,6 +2076,7 @@ module.exports = {
   insertInvoice: (data) => {
     const settings = statements.getSettings.get() || {};
     const totals = calculateInvoiceTotals(data, data.items, settings);
+    const requestedStatus = String(data.status || "").trim().toLowerCase();
     const info = statements.insertInvoice.run(
       data.invoice_number,
       data.customer_id,
@@ -1615,20 +2085,25 @@ module.exports = {
       totals.taxName,
       totals.taxRate,
       totals.taxMode,
+      totals.taxType,
+      JSON.stringify(totals.taxBreakup || {}),
+      totals.total,
+      0,
       totals.total,
       totals.discount,
       data.invoice_date,
       data.due_date || null,
-      data.status || "unpaid",
+      requestedStatus === "cancelled" ? "cancelled" : "unpaid",
       data.notes || ""
     );
     return { id: info.lastInsertRowid };
   },
-  updateInvoice: (data) =>
-    {
-      const settings = statements.getSettings.get() || {};
-      const totals = calculateInvoiceTotals(data, data.items, settings);
-      return statements.updateInvoice.run(
+  updateInvoice: (data) => {
+    const settings = statements.getSettings.get() || {};
+    const totals = calculateInvoiceTotals(data, data.items, settings);
+    const requestedStatus = String(data.status || "").trim().toLowerCase();
+    return db.transaction(() => {
+      const result = statements.updateInvoice.run(
         data.invoice_number,
         data.customer_id,
         totals.subtotal,
@@ -1636,15 +2111,22 @@ module.exports = {
         totals.taxName,
         totals.taxRate,
         totals.taxMode,
+        totals.taxType,
+        JSON.stringify(totals.taxBreakup || {}),
         totals.total,
         totals.discount,
         data.invoice_date,
         data.due_date || null,
-        data.status || "unpaid",
+        requestedStatus === "cancelled" ? "cancelled" : "unpaid",
         data.notes || "",
         data.id
       );
-    },
+      syncInvoicePaymentState(data.id, {
+        forceStatus: requestedStatus === "cancelled" ? "cancelled" : undefined,
+      });
+      return result;
+    })();
+  },
   deleteInvoice: (id) => {
     db.transaction(() => {
       statements.deleteInvoiceItems.run(id);
@@ -1661,11 +2143,16 @@ module.exports = {
       Number(data.qty || 1),
       Number(data.unit_price || 0),
       Number(data.line_subtotal || 0),
+      data.tax_id || null,
+      data.tax_name || "",
       Number(data.tax_rate || 0),
       Number(data.tax_amount || 0),
       Number(data.line_total || 0)
     ),
   getInvoiceItems: (invoiceId) => statements.getInvoiceItems.all(invoiceId),
+  getInvoicePayments: (invoiceId) => statements.getInvoicePayments.all(invoiceId),
+  createInvoicePayment,
+  deleteInvoicePayment,
 
   // Purchase Orders
   createPurchaseOrderWithItems,
@@ -1692,6 +2179,8 @@ module.exports = {
 
   // Inventory
   listWarehouses,
+  listProductOptions,
+  listWarehouseOptions,
   createWarehouse: (data) => {
     const name = String(data?.name || "").trim();
     if (!name) throw new Error("Warehouse name is required");
@@ -1871,6 +2360,7 @@ module.exports = {
 
   // SKU validation
   checkSkuExists,
+  getNextSkuSequence,
 
   // Close DB (optional)
   close: () => db.close(),

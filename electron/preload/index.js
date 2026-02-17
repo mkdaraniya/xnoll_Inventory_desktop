@@ -1,12 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-const env = process.env.NODE_ENV || "production";
-
 contextBridge.exposeInMainWorld("xnoll", {
   // App info
   getAppInfo: () => ({
-    name: "Xnoll Inventory Desktop",
-    env,
+    name: "Xnoll Inventory Pro",
   }),
 
   // Navigation
@@ -45,10 +42,23 @@ contextBridge.exposeInMainWorld("xnoll", {
   invoicesCreate: (payload) => ipcRenderer.invoke("invoices:create", payload),
   invoicesDelete: (id) => ipcRenderer.invoke("invoices:delete", id),
   invoicesGetById: (id) => ipcRenderer.invoke("invoices:getById", id),
+  invoicesPaymentsList: (invoiceId) =>
+    ipcRenderer.invoke("invoices:payments:list", invoiceId),
+  invoicesPaymentsCreate: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  invoicesPaymentsDelete: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
 
   // Settings API
   settingsGet: () => ipcRenderer.invoke("settings:get"),
   settingsSave: (payload) => ipcRenderer.invoke("settings:save", payload),
+
+  // Tax Rates API
+  taxRatesList: () => ipcRenderer.invoke("taxRates:list"),
+  taxRatesQuery: (payload) => ipcRenderer.invoke("taxRates:query", payload),
+  taxRatesCreate: (payload) => ipcRenderer.invoke("taxRates:create", payload),
+  taxRatesUpdate: (payload) => ipcRenderer.invoke("taxRates:update", payload),
+  taxRatesDelete: (id) => ipcRenderer.invoke("taxRates:delete", id),
 
   // Custom Fields API
   customFieldsList: (module) => ipcRenderer.invoke("customFields:list", module),
@@ -84,7 +94,7 @@ contextBridge.exposeInMainWorld("xnoll", {
   errorReport: (errorData) => ipcRenderer.invoke("error:report", errorData),
 
   // SKU Generation API
-  skuGenerate: (prefix) => ipcRenderer.invoke("sku:generate", prefix),
+  skuGenerate: (payload) => ipcRenderer.invoke("sku:generate", payload),
   skuValidate: (sku) => ipcRenderer.invoke("sku:validate", sku),
 
   // Company Profile API
@@ -102,18 +112,6 @@ contextBridge.exposeInMainWorld("xnoll", {
   // File operations
   selectFile: (options) => ipcRenderer.invoke("file:select", options),
   selectDirectory: () => ipcRenderer.invoke("file:selectDirectory"),
-
-  // Seeder logs & progress
-  onSeederLog: (callback) => {
-    const handler = (_event, log) => callback(log);
-    ipcRenderer.on("seeder:log", handler);
-    return () => ipcRenderer.removeListener("seeder:log", handler);
-  },
-  onSeederFinished: (callback) => {
-    const handler = (_event, code) => callback(code);
-    ipcRenderer.on("seeder:finished", handler);
-    return () => ipcRenderer.removeListener("seeder:finished", handler);
-  },
 
   // Print
   print: (htmlContent) => ipcRenderer.invoke("print:html", htmlContent),
@@ -152,20 +150,52 @@ contextBridge.exposeInMainWorld("xnoll", {
     ipcRenderer.invoke("inventory:transfer:create", payload),
   inventoryReorderUpsert: (payload) =>
     ipcRenderer.invoke("inventory:reorder:upsert", payload),
-  inventoryStockSummary: () => ipcRenderer.invoke("inventory:stock:summary"),
+  inventoryStockSummary: (filters) =>
+    ipcRenderer.invoke("inventory:stock:summary", filters),
   inventoryLotsList: (filters) =>
     ipcRenderer.invoke("inventory:lots:list", filters),
-  inventoryReorderAlerts: () => ipcRenderer.invoke("inventory:alerts:reorder"),
+  inventoryReorderAlerts: (filters) =>
+    ipcRenderer.invoke("inventory:alerts:reorder", filters),
+  inventoryProductOptions: (payload) =>
+    ipcRenderer.invoke("inventory:options:products", payload),
+  inventoryWarehouseOptions: (payload) =>
+    ipcRenderer.invoke("inventory:options:warehouses", payload),
   inventoryLedgerList: (filters) =>
     ipcRenderer.invoke("inventory:ledger:list", filters),
   inventoryLedgerQuery: (filters) =>
     ipcRenderer.invoke("inventory:ledger:query", filters),
-  inventoryValuationReport: () =>
-    ipcRenderer.invoke("inventory:report:valuation"),
-  inventoryExpiryReport: () => ipcRenderer.invoke("inventory:report:expiry"),
+  inventoryValuationReport: (filters) =>
+    ipcRenderer.invoke("inventory:report:valuation", filters),
+  inventoryExpiryReport: (filters) =>
+    ipcRenderer.invoke("inventory:report:expiry", filters),
+
+  // Backward compatibility aliases for older/typo'd integrations
+  paymentPYamentcreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentPYamentdeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
+  paymentPaymentCreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentPaymentDeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
+  paymentCreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentDeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
 });
 
-// electron/preload/index.js (in the "api" exposure)
-contextBridge.exposeInMainWorld("api", {
-  runSeeder: () => ipcRenderer.invoke("dev:run-seeder"), // Now works with handle
+// Legacy global alias support (older code used `windows.*`/`payment*` directly)
+contextBridge.exposeInMainWorld("windows", {
+  paymentPYamentcreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentPYamentdeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
+  paymentPaymentCreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentPaymentDeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
+  paymentCreated: (payload) =>
+    ipcRenderer.invoke("invoices:payments:create", payload),
+  paymentDeleted: (paymentId) =>
+    ipcRenderer.invoke("invoices:payments:delete", paymentId),
 });
