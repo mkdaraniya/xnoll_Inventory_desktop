@@ -1,6 +1,2 @@
-const { ipcMain } = require('electron');
-const db = require('../database/db');
-
-ipcMain.handle('db:select', async (_event, table) => {
-  return db.selectAll(table);
-});
+// Intentionally left without generic DB handlers.
+// Avoid exposing arbitrary table access over IPC in production.

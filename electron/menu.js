@@ -1,10 +1,47 @@
+const path = require("path");
 const { Menu, shell, BrowserWindow, dialog } = require("electron");
+
+let docsWindow = null;
 
 const nav = (page, extraType = null) => {
   const win = BrowserWindow.getAllWindows()[0];
   if (!win) return;
   win.webContents.send("navigate", page);
   if (extraType) win.webContents.send("reports:type", extraType);
+};
+
+const openDocumentationWindow = () => {
+  if (docsWindow && !docsWindow.isDestroyed()) {
+    docsWindow.focus();
+    return;
+  }
+
+  const parent = BrowserWindow.getAllWindows()[0] || null;
+  docsWindow = new BrowserWindow({
+    width: 1180,
+    height: 760,
+    minWidth: 980,
+    minHeight: 620,
+    title: "Xnoll Inventory Documentation",
+    parent,
+    icon: path.join(__dirname, "../build/icon.ico"),
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  docsWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  docsWindow.loadFile(path.join(__dirname, "docs", "user-guide.html"));
+  docsWindow.on("closed", () => {
+    docsWindow = null;
+  });
 };
 
 const template = [
@@ -59,6 +96,10 @@ const template = [
     submenu: [
       {
         label: "Documentation",
+        click: () => openDocumentationWindow(),
+      },
+      {
+        label: "Online Docs",
         click: () => shell.openExternal("https://xnoll.com/docs"),
       },
       {
@@ -71,12 +112,12 @@ const template = [
       },
       { type: "separator" },
       {
-        label: "About Xnoll Inventory Pro",
+        label: "About Xnoll Inventory",
         click: () => {
           dialog.showMessageBox({
             type: "info",
-            title: "About Xnoll Inventory Pro",
-            message: "Xnoll Inventory Pro",
+            title: "About Xnoll Inventory",
+            message: "Xnoll Inventory",
             detail:
               "Version: 1.0.0\nOffline-first inventory management system\n\n© 2026 Xnoll. All rights reserved.",
             buttons: ["OK"],

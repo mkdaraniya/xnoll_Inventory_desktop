@@ -1,7 +1,7 @@
 {
-  "name": "xnoll-inventory-pro",
+  "name": "xnoll-inventory",
   "version": "1.0.0",
-  "description": "Xnoll Inventory Pro desktop software",
+  "description": "Xnoll Inventory desktop software",
   "author": "Xnoll Team",
   "license": "Commercial",
   "main": "electron/main.js",

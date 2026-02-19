@@ -1,9 +1,12 @@
-name: Build Windows EXE (Xnoll Desktop)
+name: Build Windows Installer (Xnoll Inventory)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["master", "main"]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-windows:
@@ -16,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: npm
 
       - name: Install dependencies
@@ -36,6 +39,8 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: xnoll-windows-exe
+          name: xnoll-inventory-windows
           path: |
             dist/build/*.exe
+            dist/build/*.yml
+            dist/build/*.blockmap

@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("xnoll", {
   // App info
   getAppInfo: () => ({
-    name: "Xnoll Inventory Pro",
+    name: "Xnoll Inventory",
   }),
 
   // Navigation
@@ -18,9 +18,6 @@ contextBridge.exposeInMainWorld("xnoll", {
     ipcRenderer.on("reports:type", handler);
     return () => ipcRenderer.removeListener("reports:type", handler);
   },
-
-  // Database - Generic
-  dbSelect: (table) => ipcRenderer.invoke("db:select", table),
 
   // Customers API
   customersList: () => ipcRenderer.invoke("customers:list"),

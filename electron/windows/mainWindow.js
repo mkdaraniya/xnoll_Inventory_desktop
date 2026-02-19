@@ -7,12 +7,15 @@ function createMainWindow(isDev) {
     height: 800,
     minWidth: 1024,
     minHeight: 640,
-    title: "Xnoll Inventory Pro",
+    title: "Xnoll Inventory",
     icon: path.join(__dirname, "../../build/icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      devTools: isDev,
     },
   });
 

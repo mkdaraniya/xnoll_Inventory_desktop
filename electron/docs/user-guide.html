@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xnoll Inventory - User Guide</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --line: #e2e8f0;
+        --text: #0f172a;
+        --muted: #475569;
+        --brand: #0f766e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        background: #0b1220;
+        color: #e2e8f0;
+        border-right: 1px solid #1e293b;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow: auto;
+        padding: 16px 12px;
+      }
+
+      .brand {
+        margin: 0 0 10px;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        margin: 0 0 14px;
+        font-size: 0.8rem;
+        color: #94a3b8;
+      }
+
+      .sidebar a {
+        display: block;
+        color: #cbd5e1;
+        text-decoration: none;
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 0.86rem;
+      }
+
+      .sidebar a:hover {
+        background: #16233a;
+        color: #f8fafc;
+      }
+
+      .content {
+        padding: 20px 22px 40px;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.45rem;
+      }
+
+      h2 {
+        margin: 22px 0 8px;
+        font-size: 1.1rem;
+      }
+
+      h3 {
+        margin: 14px 0 8px;
+        font-size: 0.95rem;
+      }
+
+      p {
+        margin: 0 0 8px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .box {
+        margin-top: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+      }
+
+      ol {
+        margin: 8px 0 0 18px;
+        color: #1e293b;
+        line-height: 1.55;
+      }
+
+      li {
+        margin-bottom: 6px;
+      }
+
+      .tip {
+        margin-top: 8px;
+        border-left: 3px solid var(--brand);
+        background: #f0fdfa;
+        padding: 8px 10px;
+        border-radius: 6px;
+        color: #115e59;
+        font-size: 0.88rem;
+      }
+
+      code {
+        background: #eef2ff;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 0.82rem;
+      }
+
+      .field-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 0.88rem;
+      }
+
+      .field-table th,
+      .field-table td {
+        border: 1px solid var(--line);
+        padding: 8px 9px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .field-table th {
+        background: #f1f5f9;
+        width: 30%;
+      }
+
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: relative;
+          height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h3 class="brand">Xnoll Inventory Docs</h3>
+        <p class="subtitle">Step-by-step user guide</p>
+        <a href="#getting-started">Getting Started</a>
+        <a href="#menu-overview">Menu Overview</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#products">Products</a>
+        <a href="#suppliers">Suppliers</a>
+        <a href="#purchase-orders">Purchase Orders</a>
+        <a href="#stock-operations">Stock Operations</a>
+        <a href="#warehouses">Warehouses</a>
+        <a href="#customers">Customers</a>
+        <a href="#invoices">Invoices</a>
+        <a href="#reports">Reports</a>
+        <a href="#notes">Notes</a>
+        <a href="#settings">Settings</a>
+        <a href="#custom-fields-module">Custom Fields Deep Guide</a>
+        <a href="#daily-flow">Recommended Daily Flow</a>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <h1>Xnoll Inventory - Documentation</h1>
+          <p>
+            This guide explains every module in the app one by one. Follow the
+            exact steps here to onboard users and run daily operations.
+          </p>
+          <p>
+            Tip: Use keyboard shortcuts from the menu, such as
+            <code>Ctrl/Cmd + 1</code> to <code>Ctrl/Cmd + 7</code> for quick navigation.
+          </p>
+        </section>
+
+        <section id="getting-started" class="box">
+          <h2>1. Getting Started</h2>
+          <ol>
+            <li>Open the app and go to <code>Settings</code> first.</li>
+            <li>Configure company details, currency, and stock behavior.</li>
+            <li>Add warehouses before posting stock transactions.</li>
+            <li>Create products and suppliers.</li>
+            <li>Then start purchase orders and stock operations.</li>
+          </ol>
+        </section>
+
+        <section id="menu-overview" class="box">
+          <h2>2. Menu Overview (Top Menu Bar)</h2>
+          <ol>
+            <li>
+              <b>File</b>: start new stock transaction, new purchase order, open settings, exit app.
+            </li>
+            <li>
+              <b>View</b>: quickly open Dashboard, Products, Stock, Suppliers, Purchase Orders, Warehouses, Reports.
+            </li>
+            <li>
+              <b>Reports</b>: direct shortcuts to Ledger, Reorder Alerts, Expiry Risk, Inventory Valuation.
+            </li>
+            <li>
+              <b>Help</b>: open this documentation popup, online docs, website, support, and About dialog.
+            </li>
+          </ol>
+        </section>
+
+        <section id="dashboard" class="box">
+          <h2>3. Dashboard Module</h2>
+          <ol>
+            <li>Open <code>Dashboard</code> from sidebar or <code>Ctrl/Cmd + 1</code>.</li>
+            <li>Review KPI cards: products, warehouses, suppliers, value, and alerts.</li>
+            <li>Use dashboard as the daily health check before operations.</li>
+          </ol>
+        </section>
+
+        <section id="products" class="box">
+          <h2>4. Products Module</h2>
+          <ol>
+            <li>Open <code>Products</code>.</li>
+            <li>Click add product and fill SKU, name, unit, category, price, and tax defaults.</li>
+            <li>Use search/filter to find products quickly.</li>
+            <li>Edit product details when pricing or metadata changes.</li>
+            <li>Delete only unused products to preserve historical data consistency.</li>
+          </ol>
+          <h3>Product Form Fields</h3>
+          <table class="field-table">
+            <tr><th>SKU</th><td>Auto-generated from settings prefix (or manually set). Unique item code.</td></tr>
+            <tr><th>Name *</th><td>Required product display name used in stock and invoices.</td></tr>
+            <tr><th>Unit</th><td>Measurement such as pcs, box, kg, ltr, service.</td></tr>
+            <tr><th>Price</th><td>Base unit price. Must be non-negative.</td></tr>
+            <tr><th>Default Tax</th><td>Tax rate auto-applied in invoice rows for this product.</td></tr>
+            <tr><th>Additional Information</th><td>Dynamic custom fields configured in Settings > Custom Fields.</td></tr>
+          </table>
+        </section>
+
+        <section id="suppliers" class="box">
+          <h2>5. Suppliers Module</h2>
+          <ol>
+            <li>Open <code>Suppliers</code>.</li>
+            <li>Create supplier records with contact and tax details.</li>
+            <li>Use supplier list while creating purchase orders.</li>
+            <li>Keep status updated to active/inactive for clean operations.</li>
+          </ol>
+          <h3>Supplier Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Supplier Name *</th><td>Required legal/business supplier name.</td></tr>
+            <tr><th>Contact Person</th><td>Main communication person for this supplier.</td></tr>
+            <tr><th>Phone</th><td>Validated contact number.</td></tr>
+            <tr><th>Email</th><td>Validated supplier email.</td></tr>
+            <tr><th>Tax Number</th><td>GST/VAT/tax registration details.</td></tr>
+            <tr><th>Address</th><td>Supplier address for procurement and records.</td></tr>
+            <tr><th>Status</th><td><code>active</code> or <code>inactive</code>.</td></tr>
+            <tr><th>Additional Information</th><td>Supplier custom fields from the Custom Fields module.</td></tr>
+          </table>
+        </section>
+
+        <section id="purchase-orders" class="box">
+          <h2>6. Purchase Orders Module</h2>
+          <ol>
+            <li>Open <code>Purchase Orders</code> or use <code>Ctrl/Cmd + Shift + N</code>.</li>
+            <li>Create PO with supplier, order date, expected date, and items.</li>
+            <li>Set status (draft, ordered, partial, received, cancelled).</li>
+            <li>Update PO as goods arrive and move to received state.</li>
+            <li>Post stock transactions against received goods.</li>
+          </ol>
+          <h3>Purchase Order Header Fields</h3>
+          <table class="field-table">
+            <tr><th>PO Number</th><td>Auto-generated PO reference ID.</td></tr>
+            <tr><th>Supplier *</th><td>Required supplier record.</td></tr>
+            <tr><th>Order Date *</th><td>Required PO creation/issue date.</td></tr>
+            <tr><th>Expected Date</th><td>Expected delivery date (cannot be before order date).</td></tr>
+            <tr><th>Status</th><td>Draft, Ordered, Partial, Received, Cancelled.</td></tr>
+            <tr><th>Notes</th><td>Any logistics or internal remarks.</td></tr>
+          </table>
+          <h3>Purchase Item Row Fields</h3>
+          <table class="field-table">
+            <tr><th>Product *</th><td>Required product to procure.</td></tr>
+            <tr><th>Qty *</th><td>Required quantity greater than zero.</td></tr>
+            <tr><th>Unit Cost *</th><td>Required, non-negative procurement cost.</td></tr>
+            <tr><th>Description</th><td>Optional line-level notes/specification.</td></tr>
+          </table>
+        </section>
+
+        <section id="stock-operations" class="box">
+          <h2>7. Stock Operations Module</h2>
+          <ol>
+            <li>Open <code>Stock Operations</code>.</li>
+            <li>Create stock entries for <code>IN</code>, <code>OUT</code>, or <code>ADJUSTMENT</code>.</li>
+            <li>Select product, warehouse, quantity, and reference details.</li>
+            <li>Use lot/batch/expiry fields if enabled in settings.</li>
+            <li>Review movement history and running stock impact.</li>
+          </ol>
+          <h3>Stock Operation Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Action *</th><td><code>Inward</code>, <code>Outward</code>, or <code>Adjustment</code>.</td></tr>
+            <tr><th>Product *</th><td>Required product for stock entry.</td></tr>
+            <tr><th>Location *</th><td>Warehouse/Godown/Shop location.</td></tr>
+            <tr><th>Quantity *</th><td>Required quantity. Adjustment can use negative values for decrease.</td></tr>
+            <tr><th>Unit Cost</th><td>Cost impact for inward/valuation flows.</td></tr>
+            <tr><th>Lot or Batch Number</th><td>Visible when lot tracking is enabled.</td></tr>
+            <tr><th>MFG Date</th><td>Visible when manufacture date setting is enabled.</td></tr>
+            <tr><th>Expiry Date</th><td>Visible when expiry tracking is enabled.</td></tr>
+            <tr><th>Existing Lot/Batch</th><td>Optional selection for stock-out against specific lot.</td></tr>
+            <tr><th>Notes</th><td>Optional reason/reference.</td></tr>
+          </table>
+          <div class="tip">Default inward/outward locations are configured inside Stock Operations and saved locally for faster entry.</div>
+        </section>
+
+        <section id="warehouses" class="box">
+          <h2>8. Warehouses Module</h2>
+          <ol>
+            <li>Open <code>Warehouses</code>.</li>
+            <li>Create each warehouse with code, location, and primary flag.</li>
+            <li>Keep one primary warehouse for default operations.</li>
+            <li>Use warehouse-specific stock and reorder levels.</li>
+          </ol>
+          <h3>Warehouse Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Code</th><td>Warehouse code (auto-suggested like <code>WH-*</code>).</td></tr>
+            <tr><th>Name *</th><td>Required warehouse/location name.</td></tr>
+            <tr><th>Address, City, State, Country</th><td>Physical location details.</td></tr>
+            <tr><th>Active</th><td>Controls whether warehouse is selectable.</td></tr>
+            <tr><th>Primary</th><td>Marks default warehouse. Keep one primary.</td></tr>
+            <tr><th>Additional Information</th><td>Warehouse custom fields from settings.</td></tr>
+          </table>
+        </section>
+
+        <section id="customers" class="box">
+          <h2>9. Customers Module</h2>
+          <ol>
+            <li>Open <code>Customers</code>.</li>
+            <li>Create customer master data (name, phone, email, address).</li>
+            <li>Use customers while creating invoices.</li>
+            <li>Keep duplicates cleaned to avoid billing confusion.</li>
+          </ol>
+          <h3>Customer Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Name *</th><td>Required customer name.</td></tr>
+            <tr><th>Phone</th><td>Validated phone number.</td></tr>
+            <tr><th>Email</th><td>Validated email address.</td></tr>
+            <tr><th>Additional Information</th><td>Customer-specific custom fields.</td></tr>
+          </table>
+        </section>
+
+        <section id="invoices" class="box">
+          <h2>10. Invoices Module</h2>
+          <ol>
+            <li>Open <code>Invoices</code>.</li>
+            <li>Create invoice with customer and line items.</li>
+            <li>Tax and totals are calculated based on settings and item tax rules.</li>
+            <li>Record invoice payments and track balance due.</li>
+            <li>Use print/export from invoice flows for billing output.</li>
+          </ol>
+          <h3>Invoice Header Fields</h3>
+          <table class="field-table">
+            <tr><th>Invoice Number</th><td>Auto-generated from prefix in settings.</td></tr>
+            <tr><th>Customer *</th><td>Required customer for billing.</td></tr>
+            <tr><th>Invoice Date *</th><td>Required billing date.</td></tr>
+            <tr><th>Due Date</th><td>Optional due date (must not be before invoice date).</td></tr>
+            <tr><th>Status</th><td>Unpaid, Partially Paid, Paid, Cancelled (create flow uses unpaid/cancelled).</td></tr>
+            <tr><th>GST Type</th><td>Intra/Inter shown when GST scheme is active.</td></tr>
+            <tr><th>Discount</th><td>Header-level total discount.</td></tr>
+            <tr><th>Notes</th><td>Invoice remarks displayed based on settings toggle.</td></tr>
+          </table>
+          <h3>Invoice Item Row Fields</h3>
+          <table class="field-table">
+            <tr><th>Product *</th><td>Required product selection.</td></tr>
+            <tr><th>Description</th><td>Optional item description.</td></tr>
+            <tr><th>Qty *</th><td>Required quantity greater than zero.</td></tr>
+            <tr><th>Unit Price *</th><td>Required non-negative line rate.</td></tr>
+            <tr><th>Tax</th><td>Optional item tax rate selection.</td></tr>
+            <tr><th>Tax Rate / Tax Name</th><td>Auto-populated from tax table but editable by flow.</td></tr>
+          </table>
+          <h3>Payment Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Amount *</th><td>Must be greater than zero and not exceed pending balance.</td></tr>
+            <tr><th>Payment Date *</th><td>Required payment date.</td></tr>
+            <tr><th>Method</th><td>Cash, card, bank transfer, UPI, other.</td></tr>
+            <tr><th>Reference</th><td>Transaction/reference number.</td></tr>
+            <tr><th>Notes</th><td>Optional payment note.</td></tr>
+          </table>
+        </section>
+
+        <section id="reports" class="box">
+          <h2>11. Reports Module</h2>
+          <ol>
+            <li>Open <code>Reports</code> or use menu shortcut <code>Ctrl/Cmd + 7</code>.</li>
+            <li>Use <b>Stock Ledger</b> for movement trail.</li>
+            <li>Use <b>Reorder Alerts</b> to identify low stock items.</li>
+            <li>Use <b>Expiry Risk</b> to monitor expiring lots.</li>
+            <li>Use <b>Inventory Valuation</b> for stock value by product/warehouse.</li>
+          </ol>
+          <h3>Report Filter Fields</h3>
+          <table class="field-table">
+            <tr><th>From / To</th><td>Date range for ledger and time-based reporting.</td></tr>
+            <tr><th>Warehouse</th><td>Filter all tabs by selected warehouse.</td></tr>
+            <tr><th>Product</th><td>Filter all tabs by selected product.</td></tr>
+            <tr><th>Apply</th><td>Refresh report data with current filters.</td></tr>
+          </table>
+          <h3>Report Tabs</h3>
+          <table class="field-table">
+            <tr><th>Overview</th><td>KPI cards: on-hand units, low stock, expiring lots, valuation total.</td></tr>
+            <tr><th>Stock Ledger</th><td>Movement-level history with export CSV.</td></tr>
+            <tr><th>Reorder Alerts</th><td>Items below reorder point.</td></tr>
+            <tr><th>Expiry Tracking</th><td>Lot/batch level expiry risk (if enabled).</td></tr>
+            <tr><th>Valuation</th><td>On-hand x avg cost by product/warehouse.</td></tr>
+          </table>
+        </section>
+
+        <section id="notes" class="box">
+          <h2>12. Notes Module</h2>
+          <ol>
+            <li>Open <code>Notes</code>.</li>
+            <li>Create quick operational notes and pin important ones.</li>
+            <li>Tag notes for easier filtering and team handover.</li>
+          </ol>
+          <h3>Notes Form Fields</h3>
+          <table class="field-table">
+            <tr><th>Title *</th><td>Required note title.</td></tr>
+            <tr><th>Content</th><td>Main note text.</td></tr>
+            <tr><th>Tags</th><td>Search keywords/category tags.</td></tr>
+            <tr><th>Color</th><td>Visual color marker.</td></tr>
+            <tr><th>Pinned</th><td>Pin high-priority notes.</td></tr>
+          </table>
+        </section>
+
+        <section id="settings" class="box">
+          <h2>13. Settings Module</h2>
+          <ol>
+            <li>Open <code>Settings</code> from sidebar or menu.</li>
+            <li><b>General</b>: SKU, currency, and inventory feature switches.</li>
+            <li><b>Tax</b>: default tax/GST and invoice print behavior.</li>
+            <li><b>Tax Rates</b>: maintain selectable tax master data.</li>
+            <li><b>Company</b>: legal/profile details printed on invoice.</li>
+            <li><b>Custom Fields</b>: create dynamic fields for supported modules.</li>
+          </ol>
+          <h3>General Settings Fields</h3>
+          <table class="field-table">
+            <tr><th>Auto generate SKU</th><td>When on, products get auto-generated SKU.</td></tr>
+            <tr><th>SKU Prefix</th><td>Base text used in generated SKU codes.</td></tr>
+            <tr><th>Currency</th><td>Display currency (INR, USD, EUR, etc.).</td></tr>
+            <tr><th>Enable Lot Tracking</th><td>Turns lot/batch flow on stock screens.</td></tr>
+            <tr><th>Use Batch Label</th><td>Replaces “Lot” wording with “Batch”.</td></tr>
+            <tr><th>Enable Expiry Tracking</th><td>Adds expiry fields and expiry reports.</td></tr>
+            <tr><th>Enable Manufacture Date</th><td>Adds MFG date field in stock forms.</td></tr>
+          </table>
+          <h3>Tax Settings Fields</h3>
+          <table class="field-table">
+            <tr><th>Enable Tax</th><td>Master toggle for invoice tax logic.</td></tr>
+            <tr><th>Tax Scheme</th><td>Simple tax or India GST mode.</td></tr>
+            <tr><th>Default Tax Name / Rate / Mode</th><td>Baseline tax applied when item-level tax is not selected.</td></tr>
+            <tr><th>Default GST Type</th><td>Intra (CGST+SGST) or Inter (IGST).</td></tr>
+            <tr><th>CGST / SGST / IGST Label</th><td>Printed tax label names.</td></tr>
+            <tr><th>Invoice Prefix</th><td>Prefix used for invoice numbering.</td></tr>
+            <tr><th>Decimal Places</th><td>Invoice amount precision (0 to 4).</td></tr>
+            <tr><th>Invoice Terms / Footer</th><td>Footer text blocks in invoice output.</td></tr>
+            <tr><th>Invoice Toggle Flags</th><td>Show/hide company address, phone, email, tax details, due date, notes.</td></tr>
+          </table>
+          <h3>Tax Rates Fields</h3>
+          <table class="field-table">
+            <tr><th>Name *</th><td>Tax label name (for item selection).</td></tr>
+            <tr><th>Rate *</th><td>Percentage value, non-negative.</td></tr>
+            <tr><th>Active</th><td>Whether rate is selectable in forms.</td></tr>
+            <tr><th>Default</th><td>Default rate used if no product/item tax is chosen.</td></tr>
+          </table>
+          <h3>Company Fields</h3>
+          <table class="field-table">
+            <tr><th>Display Name *</th><td>Main company name shown in app/invoice.</td></tr>
+            <tr><th>Legal Name / Contact Person</th><td>Business identity fields.</td></tr>
+            <tr><th>Phone / Email / Website</th><td>Communication details.</td></tr>
+            <tr><th>GSTIN / PAN / State Code / Tax ID</th><td>Tax identity fields.</td></tr>
+            <tr><th>Business Registration No.</th><td>Registration reference.</td></tr>
+            <tr><th>Address / City / State / Postal / Country</th><td>Location used in invoices.</td></tr>
+            <tr><th>Bank Name / A/C / IFSC / Branch</th><td>Payment and settlement details.</td></tr>
+          </table>
+          <div class="tip">
+            Configure settings before heavy data entry. Changing tax and stock rules later can affect operations.
+          </div>
+        </section>
+
+        <section id="custom-fields-module" class="box">
+          <h2>14. Custom Fields Module (Detailed)</h2>
+          <p>
+            Custom Fields lets you add dynamic fields to specific modules without code changes.
+            Supported modules: <code>customers</code>, <code>products</code>, <code>suppliers</code>, <code>warehouses</code>.
+          </p>
+          <h3>How to Create a Custom Field</h3>
+          <ol>
+            <li>Go to <code>Settings > Custom Fields</code> and click <code>+ Add Field</code>.</li>
+            <li>Enter <b>Label</b> (human name) and <b>Name (key)</b> (lowercase_underscore).</li>
+            <li>Select target <b>Module</b> and <b>Type</b> (text, number, date, select).</li>
+            <li>For <code>select</code>, add comma-separated options.</li>
+            <li>Set behavior flags and save.</li>
+          </ol>
+          <h3>Custom Field Configuration Fields</h3>
+          <table class="field-table">
+            <tr><th>Label *</th><td>Visible field title in forms and table header.</td></tr>
+            <tr><th>Name (key) *</th><td>Unique machine key. Must be lowercase letters, numbers, underscore.</td></tr>
+            <tr><th>Module</th><td>Where field appears (customers/products/suppliers/warehouses).</td></tr>
+            <tr><th>Type</th><td>Text, Number, Date, Select.</td></tr>
+            <tr><th>Options</th><td>Required for select type (comma-separated list).</td></tr>
+            <tr><th>Default Value</th><td>Initial value used when no saved value exists.</td></tr>
+            <tr><th>Required</th><td>Field must be filled in module form.</td></tr>
+            <tr><th>Display in Grid</th><td>Show as extra column in list table.</td></tr>
+            <tr><th>Display in Filter</th><td>Reserved for filter surfaces where enabled.</td></tr>
+            <tr><th>Sortable</th><td>Marks field as sortable in data table context.</td></tr>
+            <tr><th>Searchable</th><td>Marks field as searchable in module context.</td></tr>
+          </table>
+          <h3>How It Works at Runtime</h3>
+          <ol>
+            <li>Module loads base records plus custom field definitions for that module.</li>
+            <li>Form renders an <code>Additional Information</code> section dynamically.</li>
+            <li>On save, system writes custom values per record ID.</li>
+            <li>On edit, system loads and hydrates previously saved custom values.</li>
+            <li>If <code>display_in_grid</code> is on, values appear in module table columns.</li>
+          </ol>
+          <h3>Important Rules</h3>
+          <ol>
+            <li>Do not rename <b>Name (key)</b> after go-live unless migration is planned.</li>
+            <li>Use clear label naming conventions across modules.</li>
+            <li>Prefer <code>select</code> for standardized values and reporting consistency.</li>
+            <li>Use required flag only for truly mandatory business data.</li>
+          </ol>
+        </section>
+
+        <section id="daily-flow" class="box">
+          <h2>15. Recommended Daily Flow</h2>
+          <ol>
+            <li>Check <b>Dashboard</b> for quick status and alerts.</li>
+            <li>Review <b>Reorder Alerts</b> report.</li>
+            <li>Create <b>Purchase Orders</b> for required items.</li>
+            <li>Post <b>Stock Operations</b> for received/outgoing stock.</li>
+            <li>Create <b>Invoices</b> and post payments.</li>
+            <li>End day by checking <b>Ledger</b> and <b>Valuation</b> reports.</li>
+          </ol>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

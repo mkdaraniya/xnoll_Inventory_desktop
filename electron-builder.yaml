@@ -1,7 +1,7 @@
-appId: com.xnoll.inventorypro.desktop
-productName: Xnoll Inventory Pro
+appId: com.xnoll.inventory.desktop
+productName: Xnoll Inventory
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
-executableName: xnoll-inventory-pro
+executableName: xnoll-inventory
 directories:
   output: dist/build
   buildResources: build
@@ -22,8 +22,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Xnoll Inventory Pro
-  uninstallDisplayName: Xnoll Inventory Pro
+  shortcutName: Xnoll Inventory
+  uninstallDisplayName: Xnoll Inventory
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
 

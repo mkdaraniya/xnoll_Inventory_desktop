@@ -1,5 +1,5 @@
 // electron/main.js
-const { app, Menu, BrowserWindow, globalShortcut } = require("electron");
+const { app, Menu, BrowserWindow, globalShortcut, shell, session } = require("electron");
 const { logError } = require("./utils/errorLogger");
 
 const createMainWindow = require("./windows/mainWindow");
@@ -63,6 +63,29 @@ function startApp() {
   registerGlobalShortcuts();
 }
 
+function hardenWebContents() {
+  app.on("web-contents-created", (_event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) {
+        shell.openExternal(url);
+      }
+      return { action: "deny" };
+    });
+
+    contents.on("will-attach-webview", (event) => {
+      event.preventDefault();
+    });
+
+    contents.on("will-navigate", (event, url) => {
+      const currentUrl = contents.getURL();
+      if (!currentUrl) return;
+      if (url !== currentUrl) {
+        event.preventDefault();
+      }
+    });
+  });
+}
+
 // Single-instance lock (prevents double-open)
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -77,7 +100,13 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(startApp);
+  app.whenReady().then(() => {
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false);
+    });
+    hardenWebContents();
+    startApp();
+  });
 
 
   app.on("window-all-closed", () => {
